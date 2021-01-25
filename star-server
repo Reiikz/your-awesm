@@ -1,0 +1,410 @@
+#!/bin/bash
+
+#
+# MIT License
+#
+# Copyright (c) 2021 Reiikz
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+
+TIMEOUT=30
+LOGIN_TIMEOUT=60
+SLEEP=60
+SCREEN_NAME=starbound
+#Example
+#/home/awesomeguy/.steam/steamapps/common/Starbound/linux
+WORKING_DIR=Starbound/linux
+# Your bashrc
+VAR_SCRIPT=/home/awesomeguy/.bashrc
+#Either a script or the starbound executable located in the linux folder of starbound's root
+#this is set to be the executable currently
+RUN_SCRIPT=./starbound_server
+#there's a provided script that should be at starbound's linux folder
+LINK_SCRIPT=./link_mods
+SERVICE_STOP="systemctl stop starbound"
+SERVICE_START="systemctl start starbound"
+SERVICE_RESTART="systemctl restart starbound"
+#the username this is going to run under
+USER="awesomeguy"
+APPID=211820
+#this file should contain your steam username in a bash string variable called STEAM_USERNAME and it should be executable
+LOGIN_DATA=/home/awesomeguy/scripts/config/steam_credentials
+
+
+#DIR=$(dirname $0)
+#cd $DIR
+
+#check if the user has to be overridden
+	if [ "$(whoami)" != "$USER" ]; then
+		USER_OVERRIDE="sudo -u $USER"
+	fi
+
+function checkPermission {
+	if [ -z "$SUDO_COMMAND" ] && [ "$(whoami)" != "$USER" ]; then
+		echo -e "\e[1m\e[31mNot allowed"
+		exit 0
+	fi
+}
+
+function killScreen {
+	[ $# -ne 1 ] && echo "bad usage of waitUntil" && exit 1
+	$USER_OVERRIDE screen -X -S $($USER_OVERRIDE screen -ls | grep -oE "[0-9]+\.$1" | sed -e "s/\..*$//g") kill
+}
+
+function sendCommand {
+	[ $# -ne 2 ] && echo "bad usage of sendCommand" && exit 1
+	$USER_OVERRIDE screen -S   $1 -p 0 -X stuff "$2^M"
+}
+
+function waitUntilRgex {
+	if [ $# -ne 3 ] && [ $# -ne 4 ]; then
+		echo "bad usage of waitUntil" && exit 1
+	fi
+	start=$(date "+%s")
+	$USER_OVERRIDE screen -S   $1 -p 0 -X hardcopy "/tmp/$1.screen"
+	term=$(cat /tmp/$1.screen)
+	while [ -z "$(grep -oE "$2" <<< $term)" ]; do
+		$USER_OVERRIDE screen -S   $1 -p 0 -X hardcopy "/tmp/$1.screen"
+		term=$(cat /tmp/$1.screen)
+		sleep 1
+		[ ! -z $4 ] && echo -n "$4"
+		if [ $(( $(date "+%s") - $start )) -ge $3 ]; then
+			FAIL=true
+			break
+		fi
+	done
+	#rm /tmp/$1.screen
+	[ ! -z $4 ] && echo ""
+}
+
+function isRegexThere {
+	[ -e "/tmp/$1.screen" ] && rm -rf "/tmp/$1.screen"
+	$USER_OVERRIDE screen -S   $1 -p 0 -X hardcopy "/tmp/$1.screen"
+	term=$(cat /tmp/$1.screen)
+	if [ -z "$(grep -oE "$2" <<< $term)" ]; then
+		return 1
+	else
+		return 0
+	fi
+}
+
+function isLastLineRegex {
+	[ -e "/tmp/$1.screen" ] && rm -rf "/tmp/$1.screen"
+	$USER_OVERRIDE screen -S   $1 -p 0 -X hardcopy "/tmp/$1.screen"
+	if [ -z "$(tail -n 1 /tmp/$1.screen | grep -oE "$2")" ]; then
+		return 1
+	else
+		return 0
+	fi
+}
+
+function waitUntil {
+	if [ $# -ne 3 ] && [ $# -ne 4 ]; then
+		echo "bad usage of waitUntil" && exit 1
+	fi
+	start=$(date "+%s")
+	$USER_OVERRIDE screen -S   $1 -p 0 -X hardcopy "/tmp/$1.screen"
+	term=$(cat /tmp/$1.screen)
+	while [ -z "$(grep -o "$2" <<< $term)" ]; do
+		$USER_OVERRIDE screen -S   $1 -p 0 -X hardcopy "/tmp/$1.screen"
+		term=$(cat /tmp/$1.screen)
+		sleep 1
+		[ ! -z $4 ] && echo -n "$4"
+		if [ $(( $(date "+%s") - $start )) -ge $3 ]; then
+			FAIL=true
+			break
+		fi
+	done
+	#rm /tmp/$1.screen
+	[ ! -z $4 ] && echo ""
+}
+
+function isScreen {
+	checkPermission
+	echo "$($USER_OVERRIDE screen -ls | grep -oE "[0-9]+\.$1" | sed -e "s/\..*$//g")"
+}
+
+
+function printOptions {
+	echo -e "\e[1m\e[32mavailable options:"
+	echo -e "  start           - \e[31mdo not use \e[34msudo systemctl start starbound \e[31minstead\e[32m"
+	echo -e "  stop            - \e[31mdo not use \e[34msudo systemctl stop starbound \e[31minstead\e[32m"
+	echo -e "  demonize        - \e[31mdo not use\e[0m\e[32m\e[1m"
+	echo "  update [unlink] - stop the service (if it is running), and attempt to update starbound"
+	echo "  unlink          - removes the mods from the modpack (doesn't delete them) (need restart to take effect)"
+	echo "  relink          - adds the mods from the modpack (need restart to take effect)"
+	echo "  link-mod        - links all the .pak files on the current directory to the server"
+	echo "                    DO NOT delete the file after running this or it could cause errors, before deleting the file run unlink"
+	echo "  reset-universe  - resets the universe (not reverseable and will stop the server before proceeding!)"
+	echo -e "  hook-log        - see the server long in real time\e[0m"
+}
+
+#do not run if no action specified
+if [ $# -lt 1 ]; then
+	if [ -z "$(isScreen $SCREEN_NAME)" ]; then
+		echo -e "\e[32mServer is not running"
+	else
+		echo -e "\e[32mServer is running"
+	fi
+	echo ""
+	printOptions
+	exit 0
+fi
+
+case $1 in
+
+	demonize)
+		checkPermission
+		if [ ! -z "$USER_OVERRIDE" ]; then
+			echo "you are user: $(whoami), this option must run by user $USER"
+			exit 1
+		fi
+
+		#call the start sequence
+		$0 start
+		echo "$$" > $WORKING_DIR/service.pid
+		#check if the server is still up every minute so the script keeps hold of the prompt
+		#and systemd doesn't think is crashed, also will exit on server exit so systemd restarts
+		#the server
+		while [ ! -z "$(isScreen $SCREEN_NAME)" ]; do
+			sleep $SLEEP
+		done
+		rm $WORKING_DIR/service.pid
+	;;
+
+	start)
+		checkPermission
+		if [ ! -z "$USER_OVERRIDE" ]; then
+			echo "you are user: $(whoami), this option must run by user $USER"
+			exit 1
+		fi
+		
+		if [ ! -z $(isScreen $SCREEN_NAME) ]; then
+			echo -e "\e[32mAlready Running"
+			exit 0
+		fi
+
+		echo -e "\e[32mServer Start"
+		#start a demonized screen
+		screen -dmS $SCREEN_NAME
+		#load bash profile to get env variables
+		screen -S   $SCREEN_NAME -p 0 -X stuff "source $VAR_SCRIPT^M"
+		#go into the working directory
+		screen -S   $SCREEN_NAME -p 0 -X stuff "cd $WORKING_DIR^M"
+		#run the server boot script and concatenate an exit command to close the screen on server exit
+		screen -S   $SCREEN_NAME -p 0 -X stuff "$RUN_SCRIPT ; exit^M"
+	;;
+
+	stop)
+		checkPermission
+		if [ ! -z "$USER_OVERRIDE" ]; then
+			echo "you are user: $(whoami), this option must run by user $USER"
+			exit 1
+		fi
+
+		if [ -z "$(isScreen $SCREEN_NAME)" ]; then
+			echo -e "\e[32mServer isn't running"
+			exit 0
+		fi
+
+		echo -e "\e[32mServer Stop"
+		#send stop signial to the server, send a previous enter signial in case there was something on the console (^M)
+		screen -S   $SCREEN_NAME -p 0 -X stuff "^C"
+
+		#record when the stop request was issued
+		start=$(date "+%s")
+
+		#wait while checking if it closed, if timeout is reached stop waiting
+		while [ ! -z $(screen -ls | grep -oE "[0-9]+\.$SCREEN_NAME") ] && [ $(( $(date "+%s") - $start )) -lt $TIMEOUT ]; do
+			sleep 1
+		done
+
+		#if timeout was reached kill the server
+		if [ $(( $(date "+%s") - $start )) -ge $TIMEOUT ]; then
+			echo -e "\e[1m\e[31mscreen still active after $TIMEOUT seconds, killing it"
+			screen -X -S "$(isScreen $SCREEN_NAME)" kill
+			exit 1
+		fi
+	;;
+
+	update)
+		checkPermission
+		echo -e "\e[1m\e[32mAuto updater by Reiikz ;) (c) 2020\e[0m"
+
+		if [ ! -z "$(isScreen $SCREEN_NAME)" ]; then
+			echo -e "\e[32mServer is running\e[0m"
+			$SERVICE_STOP
+		else
+			echo -e "\e[32mServer wasn't running, you might want to start it afterwards\e[0m"
+		fi
+		echo -e "\e[1m\e[32mUpdating starbound, hold on\e[0m"
+		
+		#start screeen to update starbound
+		$USER_OVERRIDE screen -dmS $SCREEN_NAME-updating
+		$USER_OVERRIDE screen -S   $SCREEN_NAME-updating -p 0 -X stuff "source $VAR_SCRIPT^M"
+		
+		
+		
+		#load steam
+		echo -e "\e[1m\e[32mLoading steam\e[0m"
+		
+		#start steam cmd
+		sendCommand $SCREEN_NAME-updating "/usr/games/steamcmd ; exit"
+
+		#wait until steamcmd loads
+		waitUntil $SCREEN_NAME-updating "Steam>" $LOGIN_TIMEOUT
+
+		#if timeout was reached kill the screen and exit
+		[ "$FAIL" == "true" ] && echo "\e[1m\e[31mFAIL\e[0m" && killScreen $SCREEN_NAME-updating && exit 1
+		
+		echo -e "\e[1m\e[32mLoaded steam!\e[0m"
+
+		#load steam credentials
+		echo -e "\e[1m\e[32mLogging in\e[0m"
+		source $LOGIN_DATA
+
+		#send login command to screen
+		sendCommand $SCREEN_NAME-updating "login $STEAM_USERNAME"
+		waitUntilRgex $SCREEN_NAME-updating "^(password:.*|Steam>\\s*)$" $LOGIN_TIMEOUT
+		if isRegexThere $SCREEN_NAME-updating "^password:.*$"; then
+			# if ! isLastLineRegex $SCREEN_NAME-updating "^Steam>\\s*$"; then
+				echo -e "\e[1m\e[32mplease enter the password for your steam account, it will not be saved\e[0m"
+				echo -ne "\e[1m\e[32mSteam password for $STEAM_USERNAME:\e[0m"
+				read -s STEAM_PASS
+				echo ""
+				sendCommand $SCREEN_NAME-updating "$STEAM_PASS"
+			# fi
+		fi
+		waitUntilRgex $SCREEN_NAME-updating "^(Steam Guard code:.*|Steam>\\s*)$" $LOGIN_TIMEOUT
+		if isRegexThere $SCREEN_NAME-updating "^Steam Guard code:.*$"; then
+			# if ! isLastLineRegex $SCREEN_NAME-updating "^Steam>\\s*$"; then
+				echo -ne "\e[1m\e[32mSteam Guard code:\e[0m"
+				read STEAM_PASS
+				echo ""
+				sendCommand $SCREEN_NAME-updating "$STEAM_PASS"
+			# fi
+		fi
+		unset STEAM_PASS
+		waitUntilRgex $SCREEN_NAME-updating "^Steam>\\s*$" $LOGIN_TIMEOUT
+		[ "$FAIL" == "true" ] && echo "\e[1m\e[31mFAIL" && killScreen $SCREEN_NAME-updating && exit 1
+
+		echo -e "\e[1m\e[32mLogged in!\e[0m"
+		#perform the update
+		echo -ne "\e[1m\e[32mPerfoming update\e[0m"
+		sendCommand $SCREEN_NAME-updating "app_update $APPID validate"
+		waitUntilRgex $SCREEN_NAME-updating "^Steam>\s*$" 3600 .
+		[ "$FAIL" == "true" ] && echo "\e[1m\e[31mFAIL" && killScreen $SCREEN_NAME-updating && exit 1
+
+		#log out
+		echo -e "\e[1m\e[32mLog out\e[0m"
+		sendCommand $SCREEN_NAME-updating "quit"
+		sleep 2
+
+		killScreen $SCREEN_NAME-updating
+
+		if [ "$2" == "unlink" ]; then
+			prev="$(pwd)"
+			cd $WORKING_DIR
+			$USER_OVERRIDE $LINK_SCRIPT unlink
+			cd "$prev"
+		else
+			echo -e "\e[1m\e[32mRelinking mods\e[0m"
+			prev="$(pwd)"
+			cd $WORKING_DIR
+			$USER_OVERRIDE $LINK_SCRIPT
+			cd "$prev"
+		fi
+
+		echo -e "\e[1m\e[32mDone!\e[0m"
+	;;
+
+	unlink)
+		checkPermission
+		prev="$(pwd)"
+		cd $WORKING_DIR
+		$USER_OVERRIDE $LINK_SCRIPT unlink
+		cd "$prev"
+	;;
+
+	relink)
+		checkPermission
+		echo -e "\e[1m\e[32mRelinking mods"
+		prev="$(pwd)"
+		cd $WORKING_DIR
+		$USER_OVERRIDE $LINK_SCRIPT
+		cd "$prev"
+	;;
+
+	reset-universe)
+		checkPermission
+		$SERVICE_STOP
+		prev="$(pwd)"
+		cd $WORKING_DIR
+		cd ../storage/
+		[ ! -e universe ] && exit 0
+		i=0
+		while [ -e "universe-$i" ]; do i=$(($i+1)); done
+		$USER_OVERRIDE mv universe universe-$i/
+		cd "$prev"
+	;;
+
+	link-mod)
+		checkPermission
+		ff="$(ls -l)"
+		ff="$(grep -oE "^.*\.pak$" <<< $ff)"
+		ff="$(sed -E "s/^.*[0-9]{2}(:)[0-9]{2}\s{1}//g" <<< $ff )"
+
+		if [ ! -z "$ff" ]; then
+			i=1
+			while IFS= read -r line ; do
+				f="$(realpath "$line")"
+				$USER_OVERRIDE ln -s "$f" "$WORKING_DIR/../mods/$line"
+				i=$(($i+1))
+			done <<< "$ff"
+		else
+			i=0
+		fi
+
+		echo -e "\e[1m\e[32mLinked $i mods"
+	;;
+
+	hook-log)
+		tail -f $WORKING_DIR/../storage/starbound_server.log
+	;;
+
+	get-last-log)
+		cp $WORKING_DIR/../storage/starbound_server.log .
+	;;
+
+	get-all-logs)
+		cp $WORKING_DIR/../storage/starbound_server.log.* .
+	;;
+
+	config)
+		checkPermission
+		$USER_OVERRIDE nano $WORKING_DIR/../storage/starbound_server.config
+	;;
+
+	*)
+		echo $1 unrecognized option
+		exit 1
+	;;
+esac
+

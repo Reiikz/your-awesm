@@ -1,0 +1,30 @@
+#!/bin/bash
+
+WORKSHOP=../../../workshop/content/211820
+MODS=../mods
+
+
+if [ "$1" == "unlink" ]; then
+	[ -z "$(ls $MODS | grep -o ".pak")" ] || rm $MODS/*.pak
+	exit 0
+fi
+
+folders=$(ls $WORKSHOP)
+i=0
+[ -z "$(ls $MODS | grep -o ".pak")" ] || rm $MODS/*.pak
+
+for f in ${folders[@]}; do
+
+	fn=$(ls $WORKSHOP/$f -l)
+	fn="$(grep -oE "^.*(.pak)" <<< $fn)"
+	fn="$(sed -E "s/^.*[0-9]{2}(:)[0-9]{2}\s{1}//g" <<< $fn )"
+
+
+
+	#echo -n $WORKSHOP/$f/$fn ; [ -e "$WORKSHOP/$f/$fn" ] && echo " exists" || " doesn\'t exist"
+	ln -s "$WORKSHOP/$f/$fn" $MODS/contents-$f-$i.pak
+
+	i=$(($i+1))
+
+done
+echo -e "\e[1m\e[32mAdded $(($i+1)) mods"
