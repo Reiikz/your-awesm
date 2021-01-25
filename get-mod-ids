@@ -1,0 +1,54 @@
+#!/bin/bash
+
+
+#
+# MIT License
+#
+# Copyright (c) 2021 https://github.com/Reiikz/
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+
+[ $# -eq 0 ] && echo "argument has to be a workshop link" && exit 1
+
+wget $1 -O workshop.html 2> /dev/null
+declare -A links
+items="$(cat workshop.html | tr -d \\n | grep -oE "<div\s+class=(\"|\')collectionItemDetails(\"|\')>\s*<a\s*href=(\"|\')http(s)*\:\/\/steamcommunity\.com\/sharedfiles\/filedetails\/\?id=[0-9]+(\"|\')\s*>")"
+while read -r line; do
+    link="$(grep -oE "http(s)*\:\/\/steamcommunity\.com\/sharedfiles\/filedetails\/\?id=[0-9]+" <<< $line)"
+    id="$(grep -oE "id=[0-9]+" <<< $link | grep -oE "[0-9]+")"
+    #name="$(wget "$link" -O - 2> /dev/null | grep -oP "(?<=<div class\=(\"|\')workshopItemTitle(\"|\')>)(.*)(?=<\/div>)")"
+    links["$id"]="$link"
+done <<< $items
+
+for id in ${!links[@]}; do
+    echo "workshop_download_item 211820 $id"
+done
+echo ""
+echo "${#links[@]} mods"
+rm workshop.html
+
+#uncomment this to see names
+# for link in ${links[@]}; do
+
+#     name="$(wget "$link" -O - 2> /dev/null | grep -oP "(?<=<div class\=(\"|\')workshopItemTitle(\"|\')>)(.*)(?=<\/div>)")"
+#     id="$(grep -oE "id=[0-9]+" <<< $link | grep -oE "[0-9]+")"
+#     echo "[$id]: $name"
+
+# done
