@@ -1,0 +1,14 @@
+[Unit]
+Description=Starbound server
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+ExecStart=/home/reiikz/scripts/services/star-server demonize
+ExecStop=/home/reiikz/scripts/services/star-server stop
+User=reiikz
+Group=reiikz
+Restart=always
+
+
