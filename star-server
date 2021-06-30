@@ -83,6 +83,7 @@ COLORFUL=1
 if [ -f "$CONFIG_FILE" ]; then
 	source $CONFIG_FILE 2>/dev/null
 fi
+source $USER_HOME/.bashrc 2>/dev/null
 
 #DIR=$(dirname $0)
 #cd $DIR
@@ -255,7 +256,7 @@ function findSteam {
 	coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Steam folder not found running 'steamcmd \"+quit\"'"
 	mkdir -p $WORK_DIR/dumps/
 
-	steamcmd "+quit" 2>&1 > $WORK_DIR/dumps/latestSteamCMDdump.stdout
+	/usr/games/steamcmd "+quit" 2>&1 > $WORK_DIR/dumps/latestSteamCMDdump.stdout
 
 	if [ -d "$USER_HOME/.steam/steam/steamapps" ]; then
 		STEAM="$USER_HOME/.steam/steam/steamapps"
@@ -395,49 +396,49 @@ function updateMods {
 	fi
 	eval "$(loadVar STOP_COMMAND $CONFIG_DIR)"
 	eval "$(loadVar START_COMMAND $CONFIG_DIR)"
-	if [ ! -z "$(isScreen $SCREEN_NAME)" ]; then
-		coecho "$FC_LIGHT_YELLOW" "Server is running"
-		if [ "$STOP_COMMAND" == "" ]; then
+	if [ "$STOP_COMMAND" == "" ]; then
+		coecho "$FC_LIGHT_CYAN" "Please choose the stop command"
+		coecho "$FC_LIGHT_CYAN" "1: $0 stop # Only for standalone installations"
+		coecho "$FC_LIGHT_CYAN" "2: sudo systemctl stop servicename # if you have setup this script as a system service"
+		read r
+		while [ "$r" != "1" ] && [ "$r" != "2" ]; do
 			coecho "$FC_LIGHT_CYAN" "Please choose the stop command"
 			coecho "$FC_LIGHT_CYAN" "1: $0 stop # Only for standalone installations"
 			coecho "$FC_LIGHT_CYAN" "2: sudo systemctl stop servicename # if you have setup this script as a system service"
 			read r
-			while [ "$r" != "1" ] && [ "$r" != "2" ]; do
-				coecho "$FC_LIGHT_CYAN" "Please choose the stop command"
-				coecho "$FC_LIGHT_CYAN" "1: $0 stop # Only for standalone installations"
-				coecho "$FC_LIGHT_CYAN" "2: sudo systemctl stop servicename # if you have setup this script as a system service"
-				read r
-			done
-			if [ "$r" == "1" ]; then
-				STOP_COMMAND="\$0 stop"
-				saveVar STOP_COMMAND $CONFIG_DIR
-				START_COMMAND="\$0 start"
-				saveVar START_COMMAND $CONFIG_DIR
-			else
+		done
+		if [ "$r" == "1" ]; then
+			STOP_COMMAND="\$0 stop"
+			saveVar STOP_COMMAND $CONFIG_DIR
+			START_COMMAND="\$0 start"
+			saveVar START_COMMAND $CONFIG_DIR
+		else
+			coecho "$FC_LIGHT_CYAN" "Please enter the name of the service"
+			read rr
+			coecho "$FC_LIGHT_YELLOW" "sudo systemctl stop $rr"
+			coecho "$FC_LIGHT_CYAN" "is that correct [Y/N]?"
+			read r
+			while [ "$(toLower "$r")" != "y" ]; do
 				coecho "$FC_LIGHT_CYAN" "Please enter the name of the service"
 				read rr
 				coecho "$FC_LIGHT_YELLOW" "sudo systemctl stop $rr"
 				coecho "$FC_LIGHT_CYAN" "is that correct [Y/N]?"
 				read r
-				while [ "$(toLower "$r")" != "y" ]; do
-					coecho "$FC_LIGHT_CYAN" "Please enter the name of the service"
-					read rr
-					coecho "$FC_LIGHT_YELLOW" "sudo systemctl stop $rr"
-					coecho "$FC_LIGHT_CYAN" "is that correct [Y/N]?"
-					read r
-				done
-				STOP_COMMAND="sudo systemctl stop $rr"
-				saveVar STOP_COMMAND $CONFIG_DIR
-				START_COMMAND="sudo systemctl start $rr"
-				saveVar START_COMMAND $CONFIG_DIR
-				coecho "$FC_LIGHT_RED$FC_BOLD" "You need to add the following lines to /etc/sudoers:"
-				coecho "$FC_LIGHT_RED$FC_BOLD" "$USER	ALL=NOPASSWD:/usr/bin/systemctl start $rr"
-				coecho "$FC_LIGHT_RED$FC_BOLD" "$USER	ALL=NOPASSWD:/usr/bin/systemctl stop $rr"
-				coecho "$FC_LIGHT_RED$FC_BOLD" "This is so the scritp's evironment has permission to restart the server when updating it"
-				coecho "$FC_LIGHT_RED$FC_BOLD" "[ENTER] to continue"
-				read r
-			fi
+			done
+			STOP_COMMAND="sudo systemctl stop $rr"
+			saveVar STOP_COMMAND $CONFIG_DIR
+			START_COMMAND="sudo systemctl start $rr"
+			saveVar START_COMMAND $CONFIG_DIR
+			coecho "$FC_LIGHT_RED$FC_BOLD" "You need to add the following lines to /etc/sudoers:"
+			coecho "$FC_LIGHT_RED$FC_BOLD" "$USER	ALL=NOPASSWD:/usr/bin/systemctl start $rr"
+			coecho "$FC_LIGHT_RED$FC_BOLD" "$USER	ALL=NOPASSWD:/usr/bin/systemctl stop $rr"
+			coecho "$FC_LIGHT_RED$FC_BOLD" "This is so the scritp's evironment has permission to restart the server when updating it"
+			coecho "$FC_LIGHT_RED$FC_BOLD" "[ENTER] to continue"
+			read r
 		fi
+	fi
+	if [ ! -z "$(isScreen $SCREEN_NAME)" ]; then
+		coecho "$FC_LIGHT_YELLOW" "Server is running"
 		if [ "$STOP_ON_UPDATE" != "1" ]; then
 			coecho "$FC_LIGHT_RED" "Can not update while the server is running"
 			coecho "$FC_LIGHT_RED" "specify --restart or --stop to close it when running update"
@@ -469,7 +470,8 @@ function updateMods {
 	coecho "$FC_LIGHT_CYAN$FC_BOLD" "steamcmd commandline dump: $cmdline"
 	coecho "$FC_LIGHT_CYAN$FC_BOLD" "dumping steamcmd output to: $WORK_DIR/dumps/latestSteamCMDdump.stdout"
 	coecho "$FC_LIGHT_GREEN" "Running steamcmd, this might take a while depending on the modpack size..."
-	steamcmd $cmdline 2>&1 > $WORK_DIR/dumps/latestSteamCMDdump.stdout
+	mkdir -p "$WORK_DIR/dumps"
+	/usr/games/steamcmd $cmdline 2>&1 > "$WORK_DIR/dumps/latestSteamCMDdump.stdout"
 	coecho "$FC_LIGHT_GREEN" "Looking for errors in the steam dump"
 	local good=0
 	local errors=""
@@ -490,7 +492,7 @@ function updateMods {
 		coecho "$FC_LIGHT_CYAN$FC_BOLD" "steamcmd commandline dump: $cmdline"
 		coecho "$FC_LIGHT_CYAN$FC_BOLD" "dumping steamcmd output to: $WORK_DIR/dumps/latestSteamCMDdump.stdout"
 		coecho "$FC_LIGHT_GREEN" "Running steamcmd, this might take a while depending on the modpack size..."
-		steamcmd $cmdline 2>&1 > $WORK_DIR/dumps/latestSteamCMDdump.stdout
+		/usr/games/steamcmd $cmdline 2>&1 > $WORK_DIR/dumps/latestSteamCMDdump.stdout
 	done
 	if [ "$good" == 1 ]; then
 		coecho "$FC_LIGHT_GREEN" "Update: All good ratty!"
@@ -763,3 +765,5 @@ while [ $# -gt 0 ]; do
 done
 
 $ACTION
+
+
