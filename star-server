@@ -30,10 +30,10 @@ SLEEP=60
 SCREEN_NAME=starbound
 #Example
 #/home/awesomeguy/.steam/steamapps/common/Starbound/linux
-WORKING_DIR="/home/awesomeguy/.steam/steam/steamapps/common/Starbound/linux"
+WORKING_DIR="/home/MDU/.steam/steam/steamapps/common/Starbound/linux"
 
 # Your bashrc
-VAR_SCRIPT="/home/awesomeguy/.bashrc"
+VAR_SCRIPT="/home/MDU/.bashrc"
 #Either a script or the starbound executable located in the linux folder of starbound's root
 #this is set to be the executable currently
 #RUN_SCRIPT="./starbound_server"
@@ -42,8 +42,15 @@ SERVICE_STOP="systemctl stop starbound"
 SERVICE_START="systemctl start starbound"
 SERVICE_RESTART="systemctl restart starbound"
 #the username this is going to run under
-USER="awesomeguy"
+USER="MDU"
 APPID=211820
+
+#ON_0_MODS means when the script recieved a valid steam workshop link but for whatever reason
+#it didn't find any mods in it
+#valid behaviour skip, crash
+#skip: skips the update and starts server
+#crash: exit code 1 on the entire script
+ON_0_MODS="skip"
 
 
 
@@ -231,6 +238,7 @@ function printOptions {
 	echo "  --start			- starts the server after running update"
 	echo "  --stop			- stops the server if need be when running update"
 	echo "  --restart			- --start and --stop combined"
+	echo "  --dry-run			- runs everything as normal but steamcmd (it skips running steamcmd)"
 	echo "  get-last-log			- copy the last logfile to the current directory"
 	echo "  get-all-logs			- get all starbound logfiles"
 	echo "  config			- edit starbound config with nano"
@@ -277,13 +285,16 @@ function parseModpack {
 		coecho "$FC_LIGHT_RED$FC_BOLD" "$1: is not a valid workshop link"
 		exit 1
 	fi
+	rm -f /tmp/$MY_UUID.workshop.html
 	wget $1 -O /tmp/$MY_UUID.workshop.html 2> /dev/null
 	PARSED_MODPACK[RAW]="$(cat /tmp/$MY_UUID.workshop.html)"
 	PARSED_MODPACK[NAME]="$(echo "${PARSED_MODPACK[RAW]}" | grep -oE "<div\s+class=\"workshopItemTitle\">.+</div>" | head -n 1 | sed -E "s/(<div\s+class=\"workshopItemTitle\">|<\/div>)//g")"
 	local items="$(echo "${PARSED_MODPACK[RAW]}" | tr -d \\n | grep -oE "<div\s+class=(\"|\')collectionItemDetails(\"|\')>\s*<a\s*href=(\"|\')http(s)*\:\/\/steamcommunity\.com\/sharedfiles\/filedetails\/\?id=[0-9]+(\"|\')\s*>")"
+	[ "$items" == "" ] && return 1
 	local c=0
 	while read -r line; do
 		local link="$(grep -oE "http(s)*\:\/\/steamcommunity\.com\/sharedfiles\/filedetails\/\?id=[0-9]+" <<< $line)"
+		[ "$link" == "" ] && continue
 		local id="$(grep -oE "id=[0-9]+" <<< $link | grep -oE "[0-9]+")"
 		PARSED_MODPACK["$id"~link]="$link"
 		PARSED_MODPACK[$c~id]="$id"
@@ -300,18 +311,60 @@ function parseModpack {
 			PARSED_MODPACK[$id~name]="$name"
 		fi
 		c=$(($c+1))
-
 		coecho "$FC_CYAN" "Found Content: ${PARSED_MODPACK[$id~name]} ($id)"
 
 	done <<< $items
+	if [ $c -eq 0 ]; then
+		PARSED_MODPACK[~modCount]="$c"
+		return 2
+	fi
 	PARSED_MODPACK[~lastItem]="$(($c-1))"
 	PARSED_MODPACK[~modCount]="$c"
 	coecho "$FC_LIGHT_GREEN$FC_BOLD" "Parsed modpack '${PARSED_MODPACK[NAME]}', $c workshop items found"
 	cleanup
+	return 0
+}
+
+function loadMods {
+	if [ "${PARSED_MODPACK[NAME]}" == "" ]; then
+		unset PARSED_MODPACK
+		declare -gA PARSED_MODPACK
+		local pmfc=1
+		while ! parseModpack "$MODPACK"; do
+			coecho "$FC_LIGHT_YELLOW$FC_BOLD" "WARNING: mods couldn't be laoded attempt #$pmfc"
+			unset PARSED_MODPACK
+			declare -gA PARSED_MODPACK
+			if [ $pmfc -gt 5 ]; then
+				coecho "$FC_RED$FC_BOLD" "Could not retreive modlist after $pmfc attempts"
+				return 1
+			fi
+			pmfc=$(($pmfc+1))
+		done
+	fi
+	return 0
 }
 
 function linkMods {
-	[ "${PARSED_MODPACK[NAME]}" == "" ] && declare -gA PARSED_MODPACK && parseModpack $MODPACK
+	if ! loadMods; then
+		[ -z "$ON_0_MODS" ] && coecho "$FC_RED$FCBOLD" "Variable ON_0_MODS must be set"
+
+		case $ON_0_MODS in
+
+			skip)
+				return 0
+			;;
+
+			crash)
+				exit 1
+			;;
+
+			*)
+				coecho "$FC_RED$FCBOLD" "Variable ON_0_MODS improperly set ($ON_0_MODS)"
+				exit 1
+			;;
+
+		esac
+	fi
 	local succesfullMods=0
 	local succesfullModsPak=0
 	local failcount=0
@@ -459,7 +512,34 @@ function updateMods {
 	if [ ! -z "$REMOVE_WORKSHOP_CONTENTS" ]; then
 		rm -r $STEAM/workshop/content/$APPID/*
 	fi
-	[ -z "${PARSED_MODPACK[NAME]}" ] && declare -gA PARSED_MODPACK && parseModpack $MODPACK
+	if ! loadMods; then
+		[ -z "$ON_0_MODS" ] && coecho "$FC_RED$FCBOLD" "Variable ON_0_MODS must be set"
+
+		case $ON_0_MODS in
+
+			skip)
+				if [ "$START_ON_UPDATE" == "1" ] && [ -z "$START_COMMAND" ]; then
+					coecho "$FC_LIGHT_RED$FC_BOLD" "--restart but stop command has not found"
+					exit 1
+				fi
+				if [ "$START_ON_UPDATE" == "1" ]; then
+					coecho "$FC_LIGHT_CYAN$FC_BOLD" "Starting server... $START_COMMAND"
+					eval "$START_COMMAND"
+				fi
+				return 0
+			;;
+
+			crash)
+				exit 1
+			;;
+
+			*)
+				coecho "$FC_RED$FCBOLD" "Variable ON_0_MODS improperly set ($ON_0_MODS)"
+				exit 1
+			;;
+
+		esac
+	fi
 	cmdline="+login anonymous"
 	for c in $(seq 0 ${PARSED_MODPACK[~lastItem]}); do
 		local id=${PARSED_MODPACK[$c~id]}
@@ -471,7 +551,11 @@ function updateMods {
 	coecho "$FC_LIGHT_CYAN$FC_BOLD" "dumping steamcmd output to: $WORK_DIR/dumps/latestSteamCMDdump.stdout"
 	coecho "$FC_LIGHT_GREEN" "Running steamcmd, this might take a while depending on the modpack size..."
 	mkdir -p "$WORK_DIR/dumps"
-	/usr/games/steamcmd $cmdline 2>&1 > "$WORK_DIR/dumps/latestSteamCMDdump.stdout"
+	if [ "$DRY_RUN" == "1" ]; then
+		coecho "$FC_LIGHT_YELLOW$FC_BOLD" "WARNING: Dry run, skipped steamcmd"
+	else
+		/usr/games/steamcmd $cmdline 2>&1 > "$WORK_DIR/dumps/latestSteamCMDdump.stdout"
+	fi
 	coecho "$FC_LIGHT_GREEN" "Looking for errors in the steam dump"
 	local good=0
 	local errors=""
@@ -492,7 +576,11 @@ function updateMods {
 		coecho "$FC_LIGHT_CYAN$FC_BOLD" "steamcmd commandline dump: $cmdline"
 		coecho "$FC_LIGHT_CYAN$FC_BOLD" "dumping steamcmd output to: $WORK_DIR/dumps/latestSteamCMDdump.stdout"
 		coecho "$FC_LIGHT_GREEN" "Running steamcmd, this might take a while depending on the modpack size..."
-		/usr/games/steamcmd $cmdline 2>&1 > $WORK_DIR/dumps/latestSteamCMDdump.stdout
+		if [ "$DRY_RUN" == "1" ]; then
+			coecho "$FC_LIGHT_YELLOW$FC_BOLD" "WARNING: Dry run, skipped steamcmd"
+		else
+			/usr/games/steamcmd $cmdline 2>&1 > "$WORK_DIR/dumps/latestSteamCMDdump.stdout"
+		fi
 	done
 	if [ "$good" == 1 ]; then
 		coecho "$FC_LIGHT_GREEN" "Update: All good ratty!"
@@ -752,6 +840,10 @@ while [ $# -gt 0 ]; do
 		--restart)
 			START_ON_UPDATE="1"
 			STOP_ON_UPDATE="1"
+		;;
+
+		--dry-run)
+			DRY_RUN="1"
 		;;
 
 		*)
