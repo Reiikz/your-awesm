@@ -239,6 +239,7 @@ function printOptions {
 	echo "  --stop			- stops the server if need be when running update"
 	echo "  --restart			- --start and --stop combined"
 	echo "  --dry-run			- runs everything as normal but steamcmd (it skips running steamcmd)"
+	echo "  --cp				- runs cp instead of ln so you get the files and not symlinks"
 	echo "  get-last-log			- copy the last logfile to the current directory"
 	echo "  get-all-logs			- get all starbound logfiles"
 	echo "  config			- edit starbound config with nano"
@@ -452,7 +453,11 @@ function linkMods {
 				local err=""
 				while IFS= read -r af; do
 					err=""
-					err="$(ln -s "$origin/$af" "$SB_DIR/mods/$id-$c""_$filenumber-$af" 2>&1)"
+					if [ "$COPY" == "1" ]; then
+						err="$(cp "$origin/$af" "$SB_DIR/mods/$id-$c""_$filenumber-$af" 2>&1)"
+					else
+						err="$(ln -s "$origin/$af" "$SB_DIR/mods/$id-$c""_$filenumber-$af" 2>&1)"
+					fi
 					if [ "$err" == "" ]; then
 						coecho "$FC_LIGHT_GREEN$FC_BOLD" "	File: $origin/$af"
 						coecho "$FC_LIGHT_GREEN$FC_BOLD" "	Linked to: $SB_DIR/mods/$id-$c""_$filenumber-$af"
@@ -532,7 +537,11 @@ function linkMods {
 				local err=""
 				while IFS= read -r af; do
 					err=""
-					err="$(ln -s "$origin/$af" "$SB_DIR/mods/$m-$c""_$filenumber-$af" 2>&1)"
+					if [ "$COPY" == "1" ]; then
+						err="$(cp "$origin/$af" "$SB_DIR/mods/$id-$c""_$filenumber-$af" 2>&1)"
+					else
+						err="$(ln -s "$origin/$af" "$SB_DIR/mods/$id-$c""_$filenumber-$af" 2>&1)"
+					fi
 					if [ "$err" == "" ]; then
 						coecho "$FC_LIGHT_GREEN$FC_BOLD" "	File: $origin/$af"
 						coecho "$FC_LIGHT_GREEN$FC_BOLD" "	Linked to: $SB_DIR/mods/$m-$c""_$filenumber-$af"
@@ -1074,6 +1083,10 @@ while [ $# -gt 0 ]; do
 			DRY_RUN="1"
 		;;
 
+		--cp)
+			COPY="1"
+		;;
+
 		--mod)
 			if [ -z "${EXTRA_MODS[@]}" ]; then
 				declare -gA EXTRA_MODS
@@ -1096,5 +1109,4 @@ while [ $# -gt 0 ]; do
 done
 
 $ACTION
-
 
