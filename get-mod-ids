@@ -1,10 +1,9 @@
 #!/bin/bash
 
-
 #
 # MIT License
 #
-# Copyright (c) 2021 https://github.com/Reiikz/
+# Copyright (c) 2021 Reiikz
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -25,30 +24,1089 @@
 # SOFTWARE.
 #
 
-[ $# -eq 0 ] && echo "argument has to be a workshop link" && exit 1
+TIMEOUT=30
+LOGIN_TIMEOUT=60
+SLEEP=60
+SCREEN_NAME=starbound
+#Example
+#/home/awesomeguy/.steam/steamapps/common/Starbound/linux
+WORKING_DIR="/home/MDU/.steam/steam/steamapps/common/Starbound/linux"
 
-wget $1 -O workshop.html 2> /dev/null
-declare -A links
-items="$(cat workshop.html | tr -d \\n | grep -oE "<div\s+class=(\"|\')collectionItemDetails(\"|\')>\s*<a\s*href=(\"|\')http(s)*\:\/\/steamcommunity\.com\/sharedfiles\/filedetails\/\?id=[0-9]+(\"|\')\s*>")"
-while read -r line; do
-    link="$(grep -oE "http(s)*\:\/\/steamcommunity\.com\/sharedfiles\/filedetails\/\?id=[0-9]+" <<< $line)"
-    id="$(grep -oE "id=[0-9]+" <<< $link | grep -oE "[0-9]+")"
-    #name="$(wget "$link" -O - 2> /dev/null | grep -oP "(?<=<div class\=(\"|\')workshopItemTitle(\"|\')>)(.*)(?=<\/div>)")"
-    links["$id"]="$link"
-done <<< $items
+# Your bashrc
+VAR_SCRIPT="/home/MDU/.bashrc"
+#Either a script or the starbound executable located in the linux folder of starbound's root
+#this is set to be the executable currently
+#RUN_SCRIPT="./starbound_server"
+RUN_SCRIPT="./starbound_server"
+SERVICE_STOP="systemctl stop starbound"
+SERVICE_START="systemctl start starbound"
+SERVICE_RESTART="systemctl restart starbound"
+#the username this is going to run under
+USERNAME="MDU"
+APPID=211820
 
-for id in ${!links[@]}; do
-    echo "workshop_download_item 211820 $id"
+#ON_0_MODS means when the script recieved a valid steam workshop link but for whatever reason
+#it didn't find any mods in it
+#valid behaviour skip, crash
+#skip: skips the update and starts server
+#crash: exit code 1 on the entire script
+ON_0_MODS="skip"
+
+
+
+# ~~~~~~~~~~~~~~~~~~~~~~~ SCRIPT STARTS HERE
+#FORMATTING CODES
+FC_RESET="\e[0m"
+FC_BOLD="\e[1m"
+
+#FORMATTING
+FC_DEFAULT_COLOR="\e[39m"
+FC_RED="\e[31m"
+FC_GREEN="\e[32m"
+FC_YELLOW="\e[33m"
+FC_BLUE="\e[34m"
+FC_MAGENTA="\e[35m"
+FC_CYAN="\e[36m"
+FC_LIGHT_GRAY="\e[37m"
+FC_DARK_GRAY="\e[90m"
+FC_LIGHT_RED="\e[91m"
+FC_LIGHT_GREEN="\e[92m"
+FC_LIGHT_YELLOW="\e[93m"
+FC_LIGHT_BLUE="\e[94m"
+FC_LIGHT_MAGENTA="\e[95m"
+FC_LIGHT_CYAN="\e[96m"
+FC_WHITE="\e[97m"
+
+
+MY_UUID="your-awesm.$(basename ${BASH_SOURCE[0]}).$$"
+SB_DIR="$(realpath --no-symlinks $WORKING_DIR/..)"
+USER_HOME="$(getent passwd $USERNAME | cut -d':' -f6)"
+WORK_DIR="$USER_HOME/.local/share/RZ.star-server/1"
+CONFIG_DIR="$USER_HOME/.config/RZ.star-server/1"
+CACHE_DIR="$USER_HOME/.cache/RZ.star-server-cache"
+mkdir -p $CONFIG_DIR
+CONFIG_FILE="$CONFIG_DIR/config.bash"
+COLORFUL=1
+if [ -f "$CONFIG_FILE" ]; then
+	source $CONFIG_FILE 2>/dev/null
+fi
+source $USER_HOME/.bashrc 2>/dev/null
+
+#DIR=$(dirname $0)
+#cd $DIR
+
+#check if the user has to be overridden
+	if [ "$(whoami)" != "$USERNAME" ]; then
+		USER_OVERRIDE="sudo -u $USERNAME"
+	fi
+
+function toLower {
+	echo "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+function saveVar {
+    local dir="$2"
+    mkdir -p "$dir"
+    [ ! -z "$(grep -oE "(-A|-a)" <<< "$(declare -p $1)")" ] && local barry="barry" || local barry="bvar"
+    declare -p $1 > $dir/$1.$barry
+    chmod 700 $dir/$1.$barry
+}
+
+function loadVar {
+    unset "$1"
+    local dir="$2"
+    if ! source $dir/$1.bvar 2> /dev/null; then
+        return 1
+    else
+        declare -p $1
+        return 0
+    fi
+}
+
+function coecho {
+	local formatting=$1
+	shift
+	local message=""
+	while [ $# -gt 0 ]; do
+		[ "$message" == "" ] && message="$1" || message="$message $1"
+		shift
+	done
+	if [ "$COLORFUL" == "1" ]; then
+		echo -e "$formatting$message$FC_RESET"
+	else
+		echo "$message"
+	fi
+}
+
+function checkPermission {
+	if [ -z "$SUDO_COMMAND" ] && [ "$(whoami)" != "$USERNAME" ]; then
+		coecho "\e[1m\e[31m" "Not allowed"
+		exit 0
+	fi
+}
+
+function killScreen {
+	[ $# -ne 1 ] && echo "bad usage of waitUntil" && exit 1
+	$USER_OVERRIDE screen -X -S $($USER_OVERRIDE screen -ls | grep -oE "[0-9]+\.$1" | sed -e "s/\..*$//g") kill
+}
+
+function sendCommand {
+	[ $# -ne 2 ] && echo "bad usage of sendCommand" && exit 1
+	$USER_OVERRIDE screen -S   $1 -p 0 -X stuff "$2^M"
+}
+
+function waitUntilRgex {
+	if [ $# -ne 3 ] && [ $# -ne 4 ]; then
+		echo "bad usage of waitUntil" && exit 1
+	fi
+	start=$(date "+%s")
+	$USER_OVERRIDE screen -S   $1 -p 0 -X hardcopy "/tmp/$1.screen"
+	term=$(cat /tmp/$1.screen)
+	while [ -z "$(grep -oE "$2" <<< $term)" ]; do
+		$USER_OVERRIDE screen -S   $1 -p 0 -X hardcopy "/tmp/$1.screen"
+		term=$(cat /tmp/$1.screen)
+		sleep 1
+		[ ! -z $4 ] && echo -n "$4"
+		if [ $(( $(date "+%s") - $start )) -ge $3 ]; then
+			FAIL=true
+			break
+		fi
+	done
+	#rm /tmp/$1.screen
+	[ ! -z $4 ] && echo ""
+}
+
+function isRegexThere {
+	[ -e "/tmp/$1.screen" ] && rm -rf "/tmp/$1.screen"
+	$USER_OVERRIDE screen -S   $1 -p 0 -X hardcopy "/tmp/$1.screen"
+	term=$(cat /tmp/$1.screen)
+	if [ -z "$(grep -oE "$2" <<< $term)" ]; then
+		return 1
+	else
+		return 0
+	fi
+}
+
+function isLastLineRegex {
+	[ -e "/tmp/$1.screen" ] && rm -rf "/tmp/$1.screen"
+	$USER_OVERRIDE screen -S   $1 -p 0 -X hardcopy "/tmp/$1.screen"
+	if [ -z "$(tail -n 1 /tmp/$1.screen | grep -oE "$2")" ]; then
+		return 1
+	else
+		return 0
+	fi
+}
+
+function waitUntil {
+	if [ $# -ne 3 ] && [ $# -ne 4 ]; then
+		echo "bad usage of waitUntil" && exit 1
+	fi
+	start=$(date "+%s")
+	$USER_OVERRIDE screen -S   $1 -p 0 -X hardcopy "/tmp/$1.screen"
+	term=$(cat /tmp/$1.screen)
+	while [ -z "$(grep -o "$2" <<< $term)" ]; do
+		$USER_OVERRIDE screen -S   $1 -p 0 -X hardcopy "/tmp/$1.screen"
+		term=$(cat /tmp/$1.screen)
+		sleep 1
+		[ ! -z $4 ] && echo -n "$4"
+		if [ $(( $(date "+%s") - $start )) -ge $3 ]; then
+			FAIL=true
+			break
+		fi
+	done
+	#rm /tmp/$1.screen
+	[ ! -z $4 ] && echo ""
+}
+
+function isScreen {
+	checkPermission
+	echo "$($USER_OVERRIDE screen -ls | grep -oE "[0-9]+\.$1" | sed -e "s/\..*$//g")"
+}
+
+
+function printOptions {
+	echo -e "\e[1m\e[32mavailable options:"
+	echo -e "  start           		- \e[31mdo not use \e[34msudo systemctl start starbound \e[31minstead\e[32m"
+	echo -e "  stop            		- \e[31mdo not use \e[34msudo systemctl stop starbound \e[31minstead\e[32m"
+	echo -e "  demonize        		- \e[31mdo not use\e[0m\e[32m\e[1m"
+	echo "  update <workshop link>	- stop the service (if it is running), and perform mod update"
+	echo "  relink <workshop link>	- adds the mods from the modpack"
+	echo "  unlink          		- removes the mods from the modpack"
+	echo "  reset-universe  		- resets the universe (not reverseable and will stop the server before proceeding!)"
+	echo "  --boring			- removes color coding"
+	echo "  --delete-workshop		- deletes workshop folder when combined with update"
+	echo "  --start			- starts the server after running update"
+	echo "  --stop			- stops the server if need be when running update"
+	echo "  --restart			- --start and --stop combined"
+	echo "  --dry-run			- runs everything as normal but steamcmd (it skips running steamcmd)"
+	echo "  --cp				- runs cp instead of ln so you get the files and not symlinks"
+	echo "  get-last-log			- copy the last logfile to the current directory"
+	echo "  get-all-logs			- get all starbound logfiles"
+	echo "  config			- edit starbound config with nano"
+	echo "  sbdir				- show me to starbound's directory"
+	echo -e "  hook-log        		- see the server long in real time\e[0m"
+}
+
+function cleanup {
+	rm -rf /tmp/$MY_UUID*
+}
+
+function findSteam {
+	if [ -d "$USER_HOME/.steam/steam/steamapps" ]; then
+		declare -g STEAM="$USER_HOME/.steam/steam/steamapps"
+		return 0
+	fi
+
+	if [ -d "$USER_HOME/.steam/debian-installation/steamapps" ]; then
+		declare -g STEAM="$USER_HOME/.steam/debian-installation/steamapps"
+		return 0
+	fi
+	
+	coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Steam folder not found running 'steamcmd \"+quit\"'"
+	mkdir -p $WORK_DIR/dumps/
+
+	/usr/games/steamcmd "+quit" 2>&1 > $WORK_DIR/dumps/latestSteamCMDdump.stdout
+
+	if [ -d "$USER_HOME/.steam/steam/steamapps" ]; then
+		declare -g STEAM="$USER_HOME/.steam/steam/steamapps"
+		return 0
+	fi
+
+	if [ -d "$USER_HOME/.steam/debian-installation/steamapps" ]; then
+		declare -g STEAM="$USER_HOME/.steam/debian-installation/steamapps"
+		return 0
+	fi
+
+	coecho "$FC_LIGHT_RED$FC_BOLD" "OOPS Steam could not be found"
+	exit 1
+}
+
+function getModName {
+	local id="$1"
+	if [ -f "$CACHE_DIR/modnames/$id.name" ]; then
+		local c=0
+		while [ -z "$(cat $CACHE_DIR/modnames/$id.name)" ]; do
+			mkdir -p $CACHE_DIR/modnames
+			echo "$(wget "https://steamcommunity.com/sharedfiles/filedetails/?id=$id" -O - 2> /dev/null | grep -oP "(?<=<div class\=(\"|\')workshopItemTitle(\"|\')>)(.*)(?=<\/div>)")" > $CACHE_DIR/modnames/$id.name
+			c=$(($c+1))
+			if [ $c -gt 5 ]; then
+				break
+			fi
+		done
+		echo "$(cat $CACHE_DIR/modnames/$id.name)"
+	else
+		mkdir -p $CACHE_DIR/modnames
+		local name="$(wget "https://steamcommunity.com/sharedfiles/filedetails/?id=$id" -O - 2> /dev/null | grep -oP "(?<=<div class\=(\"|\')workshopItemTitle(\"|\')>)(.*)(?=<\/div>)")"
+		echo "$name" > $CACHE_DIR/modnames/$id.name
+		echo "$name"
+	fi
+
+}
+
+function parseModpack {
+	if [ -z "$(grep -oE "^(http|https)://steamcommunity.com/sharedfiles/filedetails/\?id=[0-9]+" <<< $1)" ]; then
+		coecho "$FC_LIGHT_RED$FC_BOLD" "$1: is not a valid workshop link"
+		exit 1
+	fi
+	rm -f /tmp/$MY_UUID.workshop.html
+	wget $1 -O /tmp/$MY_UUID.workshop.html 2> /dev/null
+	PARSED_MODPACK[RAW]="$(cat /tmp/$MY_UUID.workshop.html)"
+	PARSED_MODPACK[NAME]="$(echo "${PARSED_MODPACK[RAW]}" | grep -oE "<div\s+class=\"workshopItemTitle\">.+</div>" | head -n 1 | sed -E "s/(<div\s+class=\"workshopItemTitle\">|<\/div>)//g")"
+	local items="$(echo "${PARSED_MODPACK[RAW]}" | tr -d \\n | grep -oE "<div\s+class=(\"|\')collectionItemDetails(\"|\')>\s*<a\s*href=(\"|\')http(s)*\:\/\/steamcommunity\.com\/sharedfiles\/filedetails\/\?id=[0-9]+(\"|\')\s*>")"
+	[ "$items" == "" ] && return 1
+	local c=0
+	while read -r line; do
+		local link="$(grep -oE "http(s)*\:\/\/steamcommunity\.com\/sharedfiles\/filedetails\/\?id=[0-9]+" <<< $line)"
+		[ "$link" == "" ] && continue
+		local id="$(grep -oE "id=[0-9]+" <<< $link | grep -oE "[0-9]+")"
+		PARSED_MODPACK["$id"~link]="$link"
+		PARSED_MODPACK[$c~id]="$id"
+		PARSED_MODPACK[$c~link]="$link"
+
+		if [ -f $CACHE_DIR/modnames/$id.name ]; then
+			PARSED_MODPACK[$c~name]="$(cat $CACHE_DIR/modnames/$id.name)"
+			PARSED_MODPACK[$id~name]="$(cat $CACHE_DIR/modnames/$id.name)"
+		else
+			mkdir -p $CACHE_DIR/modnames
+			local name="$(wget "$link" -O - 2> /dev/null | grep -oP "(?<=<div class\=(\"|\')workshopItemTitle(\"|\')>)(.*)(?=<\/div>)")"
+			echo "$name" > $CACHE_DIR/modnames/$id.name
+			PARSED_MODPACK[$c~name]="$name"
+			PARSED_MODPACK[$id~name]="$name"
+		fi
+		c=$(($c+1))
+		coecho "$FC_CYAN" "Found Content: ${PARSED_MODPACK[$id~name]} ($id)"
+
+	done <<< $items
+	if [ $c -eq 0 ]; then
+		PARSED_MODPACK[~modCount]="$c"
+		return 2
+	fi
+	PARSED_MODPACK[~lastItem]="$(($c-1))"
+	PARSED_MODPACK[~modCount]="$c"
+	coecho "$FC_LIGHT_GREEN$FC_BOLD" "Parsed modpack '${PARSED_MODPACK[NAME]}', $c workshop items found"
+	cleanup
+	return 0
+}
+
+function loadMods {
+	if [ "${PARSED_MODPACK[NAME]}" == "" ]; then
+		unset PARSED_MODPACK
+		declare -gA PARSED_MODPACK
+		local pmfc=1
+		while ! parseModpack "$MODPACK"; do
+			coecho "$FC_LIGHT_YELLOW$FC_BOLD" "WARNING: mods couldn't be laoded attempt #$pmfc"
+			unset PARSED_MODPACK
+			declare -gA PARSED_MODPACK
+			if [ $pmfc -gt 5 ]; then
+				coecho "$FC_RED$FC_BOLD" "Could not retreive modlist after $pmfc attempts"
+				return 1
+			fi
+			pmfc=$(($pmfc+1))
+		done
+	fi
+	return 0
+}
+
+function downloadMod {
+	findSteam
+	coecho "$FC_LIGHT_GREEN" "Downloading $1 \"$(getModName $1)\""
+	local cmdline
+	cmdline="+login anonymous +workshop_download_item $APPID $1 +quit"
+	coecho "$FC_LIGHT_CYAN$FC_BOLD" "steamcmd commandline dump: $cmdline"
+	coecho "$FC_LIGHT_CYAN$FC_BOLD" "dumping steamcmd output to: $WORK_DIR/dumps/latestSteamCMDdump.stdout"
+	coecho "$FC_LIGHT_GREEN" "Running steamcmd, this might take a while depending on the modpack size..."
+	mkdir -p "$WORK_DIR/dumps"
+	if [ "$DRY_RUN" == "1" ]; then
+		coecho "$FC_LIGHT_YELLOW$FC_BOLD" "WARNING: Dry run, skipped steamcmd"
+	else
+		/usr/games/steamcmd $cmdline 2>&1 > "$WORK_DIR/dumps/latestSteamCMDdump.stdout"
+	fi
+	coecho "$FC_LIGHT_GREEN" "Looking for errors in the steam dump"
+	local good=0
+	local errors=""
+	errors="$(cat $WORK_DIR/dumps/latestSteamCMDdump.stdout 2>/dev/null | grep "ERROR")"
+	if [ ! -z "$errors" ]; then
+		return 1
+	else	
+		local override="$(cat "$WORK_DIR/dumps/latestSteamCMDdump.stdout" | grep "Success" | grep -oE "\".*\"" | sed -E "s/\"//g")"
+		if [ "$override" != "$STEAM/workshop/content/$APPID/$1" ] && [ -d "$override" ]; then
+			coecho "$FC_YELLOW$FC_BOLD" "Expected \"$(getModName $1)\" at: ""/workshop/content/$APPID/$1"
+			coecho "$FC_YELLOW$FC_BOLD" "\"$(getModName $1)\" downloaded to: $override"
+			coecho "$FC_YELLOW$FC_BOLD" "WARNING: dir override set for mod id $1"
+			mkdir -p "$WORK_DIR/diroverride"
+			echo "$override" > "$WORK_DIR/diroverride/$1.path"
+		fi
+		return 0
+	fi
+}
+
+function linkMods {
+	if ! loadMods; then
+		[ -z "$ON_0_MODS" ] && coecho "$FC_RED$FCBOLD" "Variable ON_0_MODS must be set"
+
+		case $ON_0_MODS in
+
+			skip)
+				return 0
+			;;
+
+			crash)
+				exit 1
+			;;
+
+			*)
+				coecho "$FC_RED$FCBOLD" "Variable ON_0_MODS improperly set ($ON_0_MODS)"
+				exit 1
+			;;
+
+		esac
+	fi
+	local succesfullMods=0
+	local succesfullModsPak=0
+	local failcount=0
+	if findSteam; then
+		coecho "$FC_CYAN" "Steam found in: $STEAM"
+
+		for c in $(seq 0 ${PARSED_MODPACK[~lastItem]}); do
+			local id="${PARSED_MODPACK[$c~id]}"
+			local name=${PARSED_MODPACK[$c~name]}
+
+			local origin=""
+			if [ -f "$WORK_DIR/diroverride/$id.path" ]; then
+				coecho "$FC_YELLOW$FC_BOLD" "WARNING: OVERRIDE FOR MOD ($m) PATH SET IN $WORK_DIR/diroverride/$m.path"
+				origin="$(cat "$WORK_DIR/diroverride/$id.path")"
+			else
+				origin="$STEAM/workshop/content/$APPID/$id"
+			fi
+
+			if [ -d "$origin" ]; then
+				local fn="$(ls $origin -l)"
+				if [ "$fn" == "" ]; then
+					coecho "$FC_LIGHT_RED$FC_BOLD" "Directory: $origin was empty"
+					failcount=$(($failcount+1))
+					continue
+				fi
+				fn="$(grep -oE "^.*(.pak)" <<< $fn)"
+				fn="$(sed -E "s/^.*[0-9]{2}(:)[0-9]{2}\s{1}//g" <<< $fn )"
+				filenumber=1
+				coecho "$FC_LIGHT_GREEN" "Linking Mod: '$name'"
+				local err=""
+				while IFS= read -r af; do
+					err=""
+					if [ "$COPY" == "1" ]; then
+						err="$(cp "$origin/$af" "$SB_DIR/mods/$id-$c""_$filenumber-$af" 2>&1)"
+					else
+						err="$(ln -s "$origin/$af" "$SB_DIR/mods/$id-$c""_$filenumber-$af" 2>&1)"
+					fi
+					if [ "$err" == "" ]; then
+						coecho "$FC_LIGHT_GREEN$FC_BOLD" "	File: $origin/$af"
+						coecho "$FC_LIGHT_GREEN$FC_BOLD" "	Linked to: $SB_DIR/mods/$id-$c""_$filenumber-$af"
+						succesfullModsPak=$(($succesfullModsPak+1))
+					else
+						coecho "$FC_LIGHT_RED$FC_BOLD" "	could not link file $origin/$af"
+						coecho "$FC_LIGHT_RED$FC_BOLD" "	Error: $err"
+					fi
+					filenumber=$(($filenumber+1))
+				done <<< "$fn"
+				if [ "$err" == "" ]; then
+					succesfullMods=$(($succesfullMods+1))
+				else
+					failcount="$(($failcount+1))"
+				fi
+				echo ""
+			else
+				UPDATE=1
+				if [ ! -z "$UPDATED" ]; then
+					coecho "$FC_LIGHT_RED$FC_BOLD" "Modpack update was attempted but '$name' is missing"
+					coecho "$FC_LIGHT_RED$FC_BOLD" "	ID: ${PARSED_MODPACK[$c~id]}"
+					coecho "$FC_LIGHT_RED$FC_BOLD" "	assumed dir path: $origin"
+					coecho "$FC_LIGHT_RED$FC_BOLD" "	workshop link: ${PARSED_MODPACK[$c~link]}"
+					if [ ! -z "${RETRIED_MODS[$id]}" ]; then
+						exit 1
+					else
+						coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Will retry to download '$name'"
+						local fcc=0
+						while ! downloadMod $id; do
+							fcc=$(($fcc+1))
+							if [ $fcc -gt 5 ]; then
+								coecho "$FC_BOLD$FC_RED" "Tried to download $(getModName $id) $(($fcc-1)) times, failed to update"
+								exit 1
+							fi
+						done
+						declare -p RETRIED_MODS 2>/dev/null >/dev/null || declare -gA RETRIED_MODS
+						RETRIED_MODS[$id]=yes
+						unlink
+						linkMods
+					fi
+					exit 1
+				else
+					coecho "$FC_LIGHT_RED$FC_BOLD" "'$name' is missing, will call update"
+					break
+				fi
+			fi
+
+		done
+
+		coecho "$FC_YELLOW$FC_BOLD" "Linking extra mods"
+		local c="${PARSED_MODPACK[~modCount]}"
+		local succesfullModsPakExtra=0
+		local succesfullModsExtra=0
+		local failcountExtra=0
+		for m in ${EXTRA_MODS[@]}; do
+
+			local origin=""
+			if [ -e "$WORK_DIR/diroverride/$m.path" ]; then
+				coecho "$FC_YELLOW$FC_BOLD" "WARNING: OVERRIDE FOR MOD ($m) PATH SET IN $WORK_DIR/diroverride/$m.path"
+				origin="$(cat "$WORK_DIR/diroverride/$m.path")"
+			else
+				origin="$STEAM/workshop/content/$APPID/$m"
+			fi
+
+			if [ -d "$origin" ]; then
+
+				local fn="$(ls $origin -l)"
+				if [ "$fn" == "" ]; then
+					coecho "$FC_LIGHT_RED$FC_BOLD" "Directory: $origin was empty"
+					failcount=$(($failcount+1))
+					continue
+				fi
+				fn="$(grep -oE "^.*(.pak)" <<< $fn)"
+				fn="$(sed -E "s/^.*[0-9]{2}(:)[0-9]{2}\s{1}//g" <<< $fn )"
+				local filenumber=1
+				coecho "$FC_LIGHT_GREEN" "Linking Mod: '$(getModName $m)'"
+				local err=""
+				while IFS= read -r af; do
+					err=""
+					if [ "$COPY" == "1" ]; then
+						err="$(cp "$origin/$af" "$SB_DIR/mods/$id-$c""_$filenumber-$af" 2>&1)"
+					else
+						err="$(ln -s "$origin/$af" "$SB_DIR/mods/$id-$c""_$filenumber-$af" 2>&1)"
+					fi
+					if [ "$err" == "" ]; then
+						coecho "$FC_LIGHT_GREEN$FC_BOLD" "	File: $origin/$af"
+						coecho "$FC_LIGHT_GREEN$FC_BOLD" "	Linked to: $SB_DIR/mods/$m-$c""_$filenumber-$af"
+						succesfullModsPakExtra=$(($succesfullModsPakExtra+1))
+					else
+						coecho "$FC_LIGHT_RED$FC_BOLD" "	could not link file $origin/$af"
+						coecho "$FC_LIGHT_RED$FC_BOLD" "	Error: $err"
+						failcountExtra=$(($failcountExtra+1))
+					fi
+					filenumber=$(($filenumber+1))
+				done <<< "$fn"
+				if [ "$err" != "" ]; then
+					continue
+				fi
+				succesfullModsExtra=$(($succesfullModsExtra+1))
+				c=$(($c+1))
+			else
+				coecho "$FC_LIGHT_RED$FC_BOLD" "Extra mod \"$(getModName $m)\" is missing"
+				coecho "$FC_LIGHT_RED$FC_BOLD" "	ID: $m"
+				coecho "$FC_LIGHT_RED$FC_BOLD" "	assumed dir path: $origin"
+				coecho "$FC_LIGHT_RED$FC_BOLD" "	workshop link: https://steamcommunity.com/sharedfiles/filedetails/?id=$m"
+				if [ ! -z "${RETRIED_MODS[$m]}" ]; then
+					exit 1
+				else
+					coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Will retry to download '$name'"
+					local fcc
+					while ! downloadMod $m; do
+						fcc=$(($fcc+1))
+						if [ $fcc -gt 5 ]; then
+							coecho "$FC_BOLD$FC_RED" "Tried to download $(getModName $m) $(($fcc-1)) times, failed to update"
+							exit 1
+						fi
+					done
+					declare -p RETRIED_MODS 2>/dev/null >/dev/null || declare -gA RETRIED_MODS
+					RETRIED_MODS[$m]=yes
+					unlink
+					linkMods
+				fi
+
+			fi
+
+		done
+
+		if [ $succesfullMods -gt 0 ]; then
+			coecho "$FC_LIGHT_GREEN$FC_BOLD" "Successfully linked $succesfullMods mods!"
+			coecho "$FC_LIGHT_GREEN$FC_BOLD" "Successfully linked $succesfullModsPak .pak files!"
+		fi
+
+		if [ $succesfullModsExtra -gt 0 ]; then
+			coecho "$FC_LIGHT_GREEN$FC_BOLD" "Successfully linked $succesfullModsExtra Extra mods!"
+			coecho "$FC_LIGHT_GREEN$FC_BOLD" "Successfully linked $succesfullModsPakExtra .pak files from Extra mods!"
+		fi
+
+		if [ $failcount -gt 0 ]; then
+			coecho "$FC_LIGHT_RED$FC_BOLD" "Failed to link $failcount mods"
+		fi
+
+		if [ $failcountExtra -gt 0 ]; then
+			coecho "$FC_LIGHT_RED$FC_BOLD" "Failed to link $failcountExtra Extra mods"
+		fi
+	fi
+}
+
+function unlinkMods {
+	coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Mods removed!"
+	rm -f $SB_DIR/mods/*
+}
+
+function updateMods {
+	if [ -z "$UPDATE" ]; then
+		coecho "$FC_LIGHT_GREEN$FC_BOLD" "Mod update..."
+	fi
+	eval "$(loadVar STOP_COMMAND $CONFIG_DIR)"
+	eval "$(loadVar START_COMMAND $CONFIG_DIR)"
+	if [ "$STOP_COMMAND" == "" ]; then
+		coecho "$FC_LIGHT_CYAN" "Please choose the stop command"
+		coecho "$FC_LIGHT_CYAN" "1: $0 stop # Only for standalone installations"
+		coecho "$FC_LIGHT_CYAN" "2: sudo systemctl stop servicename # if you have setup this script as a system service"
+		read r
+		while [ "$r" != "1" ] && [ "$r" != "2" ]; do
+			coecho "$FC_LIGHT_CYAN" "Please choose the stop command"
+			coecho "$FC_LIGHT_CYAN" "1: $0 stop # Only for standalone installations"
+			coecho "$FC_LIGHT_CYAN" "2: sudo systemctl stop servicename # if you have setup this script as a system service"
+			read r
+		done
+		if [ "$r" == "1" ]; then
+			STOP_COMMAND="\$0 stop"
+			saveVar STOP_COMMAND $CONFIG_DIR
+			START_COMMAND="\$0 start"
+			saveVar START_COMMAND $CONFIG_DIR
+		else
+			coecho "$FC_LIGHT_CYAN" "Please enter the name of the service"
+			read rr
+			coecho "$FC_LIGHT_YELLOW" "sudo systemctl stop $rr"
+			coecho "$FC_LIGHT_CYAN" "is that correct [Y/N]?"
+			read r
+			while [ "$(toLower "$r")" != "y" ]; do
+				coecho "$FC_LIGHT_CYAN" "Please enter the name of the service"
+				read rr
+				coecho "$FC_LIGHT_YELLOW" "sudo systemctl stop $rr"
+				coecho "$FC_LIGHT_CYAN" "is that correct [Y/N]?"
+				read r
+			done
+			STOP_COMMAND="sudo systemctl stop $rr"
+			saveVar STOP_COMMAND $CONFIG_DIR
+			START_COMMAND="sudo systemctl start $rr"
+			saveVar START_COMMAND $CONFIG_DIR
+			coecho "$FC_LIGHT_RED$FC_BOLD" "You need to add the following lines to /etc/sudoers:"
+			coecho "$FC_LIGHT_RED$FC_BOLD" "$USERNAME	ALL=NOPASSWD:/usr/bin/systemctl start $rr"
+			coecho "$FC_LIGHT_RED$FC_BOLD" "$USERNAME	ALL=NOPASSWD:/usr/bin/systemctl stop $rr"
+			coecho "$FC_LIGHT_RED$FC_BOLD" "This is so the scritp's evironment has permission to restart the server when updating it"
+			coecho "$FC_LIGHT_RED$FC_BOLD" "[ENTER] to continue"
+			read r
+		fi
+	fi
+	if [ ! -z "$(isScreen $SCREEN_NAME)" ]; then
+		coecho "$FC_LIGHT_YELLOW" "Server is running"
+		if [ "$STOP_ON_UPDATE" != "1" ]; then
+			coecho "$FC_LIGHT_RED" "Can not update while the server is running"
+			coecho "$FC_LIGHT_RED" "specify --restart or --stop to close it when running update"
+			exit 1
+		fi
+	fi
+	if [ "$STOP_ON_UPDATE" == "1" ] && [ -z "$STOP_COMMAND" ]; then
+		coecho "$FC_LIGHT_RED$FC_BOLD" "--restart but stop command has not found"
+		exit 1
+	fi
+	if [ ! -z "$(isScreen $SCREEN_NAME)" ] && [ "$STOP_ON_UPDATE" == "1" ] && [ ! -z "$STOP_COMMAND" ]; then
+		coecho "$FC_LIGHT_CYAN$FC_BOLD" "Stopping server... $STOP_COMMAND"
+		eval "$STOP_COMMAND"
+	fi
+	UPDATED=1
+	findSteam
+	coecho "$FC_LIGHT_GREEN" "Preparing for steamcmd..."
+	if [ ! -z "$REMOVE_WORKSHOP_CONTENTS" ]; then
+		rm -r $STEAM/workshop/content/$APPID/*
+	fi
+	if ! loadMods; then
+		[ -z "$ON_0_MODS" ] && coecho "$FC_RED$FCBOLD" "Variable ON_0_MODS must be set"
+
+		case $ON_0_MODS in
+
+			skip)
+				if [ "$START_ON_UPDATE" == "1" ] && [ -z "$START_COMMAND" ]; then
+					coecho "$FC_LIGHT_RED$FC_BOLD" "--restart but stop command has not found"
+					exit 1
+				fi
+				if [ "$START_ON_UPDATE" == "1" ]; then
+					coecho "$FC_LIGHT_CYAN$FC_BOLD" "Starting server... $START_COMMAND"
+					eval "$START_COMMAND"
+				fi
+				return 0
+			;;
+
+			crash)
+				exit 1
+			;;
+
+			*)
+				coecho "$FC_RED$FCBOLD" "Variable ON_0_MODS improperly set ($ON_0_MODS)"
+				exit 1
+			;;
+
+		esac
+	fi
+	cmdline="+login anonymous"
+	for c in $(seq 0 ${PARSED_MODPACK[~lastItem]}); do
+		local id=${PARSED_MODPACK[$c~id]}
+		local name=${PARSED_MODPACK[$c~name]}
+		cmdline="$cmdline +workshop_download_item $APPID $id"
+	done
+	cmdline="$cmdline +quit"
+	coecho "$FC_LIGHT_CYAN$FC_BOLD" "steamcmd commandline dump: $cmdline"
+	coecho "$FC_LIGHT_CYAN$FC_BOLD" "dumping steamcmd output to: $WORK_DIR/dumps/latestSteamCMDdump.stdout"
+	coecho "$FC_LIGHT_GREEN" "Running steamcmd, this might take a while depending on the modpack size..."
+	mkdir -p "$WORK_DIR/dumps"
+	if [ "$DRY_RUN" == "1" ]; then
+		coecho "$FC_LIGHT_YELLOW$FC_BOLD" "WARNING: Dry run, skipped steamcmd"
+	else
+		/usr/games/steamcmd $cmdline 2>&1 > "$WORK_DIR/dumps/latestSteamCMDdump.stdout"
+	fi
+	coecho "$FC_LIGHT_GREEN" "Looking for errors in the steam dump"
+	local good=0
+	local errors=""
+	for i in $(seq 1 3); do
+		errors="$(cat $WORK_DIR/dumps/latestSteamCMDdump.stdout 2>/dev/null | grep -oE "\s+\.{3}ERROR\!.+downloading\s+item\s+[0-9]+" | grep -oE "[0-9]+$")"
+		if [ "$errors" == "" ]; then
+			good=1
+			break
+		fi
+		local modnames=""
+		cmdline="+login anonymous"
+		for m in ${errors[@]}; do
+			[ "$modnames" == "" ] && modnames="'${PARSED_MODPACK[$m~name]}'($m)" || modnames="$modnames, '${PARSED_MODPACK[$m~name]}'($m)"
+			cmdline="$cmdline +workshop_download_item $APPID $m"
+		done
+		cmdline="$cmdline +quit"
+		coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Retrying failed downloads: $modnames"
+		coecho "$FC_LIGHT_CYAN$FC_BOLD" "steamcmd commandline dump: $cmdline"
+		coecho "$FC_LIGHT_CYAN$FC_BOLD" "dumping steamcmd output to: $WORK_DIR/dumps/latestSteamCMDdump.stdout"
+		coecho "$FC_LIGHT_GREEN" "Running steamcmd, this might take a while depending on the modpack size..."
+		if [ "$DRY_RUN" == "1" ]; then
+			coecho "$FC_LIGHT_YELLOW$FC_BOLD" "WARNING: Dry run, skipped steamcmd"
+		else
+			/usr/games/steamcmd $cmdline 2>&1 > "$WORK_DIR/dumps/latestSteamCMDdump.stdout"
+		fi
+	done
+
+	if [ "$good" == 1 ]; then
+		coecho "$FC_LIGHT_GREEN" "Update: All good ratty!"
+	else
+		coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Oof I could not update some mods..."
+		for m in ${errors[@]}; do
+			coecho "$FC_LIGHT_YELLOW$FC_BOLD" "MOD: '${PARSED_MODPACK[$m~name]}'"
+			coecho "$FC_LIGHT_YELLOW$FC_BOLD" "	ID: $m"
+			coecho "$FC_LIGHT_YELLOW$FC_BOLD" "	Workshop Link: ${PARSED_MODPACK[$m~link]}"
+			if [ -d $STEAM/workshop/content/$APPID/$m ]; then
+				coecho "$FC_LIGHT_YELLOW$FC_BOLD" "	Location [Found]: $STEAM/workshop/content/$APPID/$m"
+			else
+				coecho "$FC_LIGHT_YELLOW$FC_BOLD" "	Location [Not Found]: $STEAM/workshop/content/$APPID/$m"
+			fi
+		done
+	fi
+
+	if [ ! -z "${EXTRA_MODS[0]}" ]; then
+
+		coecho "$FC_YELLOW$FC_BOLD" "Updating Extra mods"
+		coecho "$FC_LIGHT_GREEN" "Preparing for steamcmd..."
+		
+		cmdline="+login anonymous"
+
+		for m in ${EXTRA_MODS[@]}; do
+			cmdline="$cmdline +workshop_download_item $APPID $m"
+		done
+		cmdline="$cmdline +quit"
+
+		coecho "$FC_LIGHT_CYAN$FC_BOLD" "steamcmd commandline dump: $cmdline"
+		coecho "$FC_LIGHT_CYAN$FC_BOLD" "dumping steamcmd output to: $WORK_DIR/dumps/latestSteamCMDdump.stdout"
+		coecho "$FC_LIGHT_GREEN" "Running steamcmd, this might take a while depending on the modpack size..."
+
+		if [ "$DRY_RUN" == "1" ]; then
+			coecho "$FC_LIGHT_YELLOW$FC_BOLD" "WARNING: Dry run, skipped steamcmd"
+		else
+			/usr/games/steamcmd $cmdline 2>&1 > "$WORK_DIR/dumps/latestSteamCMDdump.stdout"
+		fi
+
+		for i in $(seq 1 3); do
+
+			errors="$(cat $WORK_DIR/dumps/latestSteamCMDdump.stdout 2>/dev/null | grep -oE "\s+\.{3}ERROR\!.+downloading\s+item\s+[0-9]+" | grep -oE "[0-9]+$")"
+			if [ "$errors" == "" ]; then
+				good=1
+				break
+			fi
+			coecho "$FC_LIGHT_GREEN" "Preparing for steamcmd..."
+			
+			cmdline="+login anonymous"
+
+			for m in ${EXTRA_MODS[@]}; do
+				cmdline="$cmdline +workshop_download_item $APPID $m"
+			done
+			cmdline="$cmdline +quit"
+
+			coecho "$FC_LIGHT_CYAN$FC_BOLD" "steamcmd commandline dump: $cmdline"
+			coecho "$FC_LIGHT_CYAN$FC_BOLD" "dumping steamcmd output to: $WORK_DIR/dumps/latestSteamCMDdump.stdout"
+			coecho "$FC_LIGHT_GREEN" "Running steamcmd, this might take a while depending on the modpack size..."
+
+			if [ "$DRY_RUN" == "1" ]; then
+				coecho "$FC_LIGHT_YELLOW$FC_BOLD" "WARNING: Dry run, skipped steamcmd"
+			else
+				/usr/games/steamcmd $cmdline 2>&1 > "$WORK_DIR/dumps/latestSteamCMDdump.stdout"
+			fi
+
+		done
+	fi
+
+	if [ "$good" == 1 ]; then
+		coecho "$FC_LIGHT_GREEN" "Update: All good ratty!"
+	else
+		coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Oof I could not update some mods..."
+		for m in ${errors[@]}; do
+			coecho "$FC_LIGHT_YELLOW$FC_BOLD" "MOD: '${PARSED_MODPACK[$m~name]}'"
+			coecho "$FC_LIGHT_YELLOW$FC_BOLD" "	ID: $m"
+			coecho "$FC_LIGHT_YELLOW$FC_BOLD" "	Workshop Link: ${PARSED_MODPACK[$m~link]}"
+			if [ -d $STEAM/workshop/content/$APPID/$m ]; then
+				coecho "$FC_LIGHT_YELLOW$FC_BOLD" "	Location [Found]: $STEAM/workshop/content/$APPID/$m"
+			else
+				coecho "$FC_LIGHT_YELLOW$FC_BOLD" "	Location [Not Found]: $STEAM/workshop/content/$APPID/$m"
+			fi
+		done
+	fi
+
+	relink
+
+	if [ "$START_ON_UPDATE" == "1" ] && [ -z "$START_COMMAND" ]; then
+		coecho "$FC_LIGHT_RED$FC_BOLD" "--restart but stop command has not found"
+		exit 1
+	fi
+	if [ "$START_ON_UPDATE" == "1" ]; then
+		coecho "$FC_LIGHT_CYAN$FC_BOLD" "Starting server... $START_COMMAND"
+		eval "$START_COMMAND"
+	fi
+}
+
+#do not run if no action specified
+if [ $# -lt 1 ]; then
+	if [ -z "$(isScreen $SCREEN_NAME)" ]; then
+		coecho "\e[32m" "Server is not running"
+	else
+		coecho "\e[32m" "Server is running"
+	fi
+	echo ""
+	printOptions
+	exit 0
+fi
+
+function start {
+	checkPermission
+	if [ ! -z "$USER_OVERRIDE" ]; then
+		echo "you are user: $(whoami), this option must run by user $USERNAME"
+		exit 1
+	fi
+	
+	if [ ! -z $(isScreen $SCREEN_NAME) ]; then
+		coecho "\e[32m" "Already Running"
+		exit 0
+	fi
+
+	coecho "\e[32m" "Server Start"
+	#start a demonized screen
+	screen -dmS $SCREEN_NAME
+	#load bash profile to get env variables
+	screen -S   $SCREEN_NAME -p 0 -X stuff "source $VAR_SCRIPT^M"
+	#go into the working directory
+	screen -S   $SCREEN_NAME -p 0 -X stuff "cd $WORKING_DIR^M"
+	#run the server boot script and concatenate an exit command to close the screen on server exit
+	screen -S   $SCREEN_NAME -p 0 -X stuff "$RUN_SCRIPT ; exit^M"
+}
+
+function demonize {
+	checkPermission
+	if [ ! -z "$USER_OVERRIDE" ]; then
+		echo "you are user: $(whoami), this option must run by user $USERNAME"
+		exit 1
+	fi
+
+	#call the start sequence
+	$0 start
+	echo "$$" > $WORKING_DIR/service.pid
+	#check if the server is still up every minute so the script keeps hold of the prompt
+	#and systemd doesn't think is crashed, also will exit on server exit so systemd restarts
+	#the server
+	while [ ! -z "$(isScreen $SCREEN_NAME)" ]; do
+		sleep $SLEEP
+	done
+	rm $WORKING_DIR/service.pid
+}
+
+function stop {
+	checkPermission
+	if [ ! -z "$USER_OVERRIDE" ]; then
+		echo "you are user: $(whoami), this option must run by user $USERNAME"
+		exit 1
+	fi
+
+	if [ -z "$(isScreen $SCREEN_NAME)" ]; then
+		coecho "\e[32m" "Server isn't running"
+		exit 0
+	fi
+
+	coecho "\e[32m" "Server Stop"
+	#send stop signial to the server, send a previous enter signial in case there was something on the console (^M)
+	screen -S   $SCREEN_NAME -p 0 -X stuff "^C"
+
+	#record when the stop request was issued
+	start=$(date "+%s")
+
+	#wait while checking if it closed, if timeout is reached stop waiting
+	while [ ! -z $(screen -ls | grep -oE "[0-9]+\.$SCREEN_NAME") ] && [ $(( $(date "+%s") - $start )) -lt $TIMEOUT ]; do
+		sleep 1
+	done
+
+	#if timeout was reached kill the server
+	if [ $(( $(date "+%s") - $start )) -ge $TIMEOUT ]; then
+		coecho "\e[1m\e[31m" "screen still active after $TIMEOUT seconds, killing it"
+		screen -X -S "$(isScreen $SCREEN_NAME)" kill
+		exit 1
+	fi
+}
+
+function update {
+	checkPermission
+	updateMods
+}
+
+function relink {
+	unlinkMods
+	linkMods
+	cleanup
+}
+
+function reset_universe {
+	checkPermission
+	$SERVICE_STOP
+	prev="$(pwd)"
+	cd $WORKING_DIR
+	cd ../storage/
+	[ ! -e universe ] && exit 0
+	i=0
+	while [ -e "universe-$i" ]; do i=$(($i+1)); done
+	$USER_OVERRIDE mv universe universe-$i/
+	cd "$prev"
+}
+
+function hook_log {
+	tail -f "$WORKING_DIR/../storage/starbound_server.log"
+}
+
+function get_last_log {
+	cp "$WORKING_DIR/../storage/starbound_server.log" .
+}
+
+function get_all_logs {
+	cp "$WORKING_DIR/../storage/starbound_server.log.*" .
+}
+
+function config {
+	checkPermission
+	$USER_OVERRIDE nano "$WORKING_DIR/../storage/starbound_server.config"
+}
+
+function unlink {
+	checkPermission
+	unlinkMods
+}
+
+function navToStarbound {
+	coecho "$FC_GREEN$FC_BOLD" "$SB_DIR"
+}
+
+while [ $# -gt 0 ]; do
+
+	case $1 in
+
+		demonize)
+			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			ACTION="demonize"
+		;;
+
+		start)
+			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			ACTION="start"
+		;;
+
+		stop)
+			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			ACTION="stop"
+		;;
+
+		update)
+			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			shift
+			if [ "$1" != "" ] && [ "$#" -gt 0 ]; then
+				MODPACK="$1"
+			else
+				echo "Expected modpack url after relink"
+			fi
+			ACTION="update"
+		;;
+
+		unlink)
+			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			ACTION="unlink"
+		;;
+
+		relink)
+			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			checkPermission
+			shift
+			if [ "$1" != "" ] && [ "$#" -gt 0 ]; then
+				MODPACK="$1"
+			else
+				echo "Expected modpack url after relink"
+			fi
+			ACTION="relink"
+		;;
+
+		reset-universe)
+			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			ACTION="reset_universe"
+		;;
+
+		hook-log)
+			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			ACTION="hook_log"
+		;;
+
+		get-last-log)
+			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			ACTION="get_last_log"
+		;;
+
+		get-all-logs)
+			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			ACTION="get_all_logs"
+		;;
+
+		config)
+			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			ACTION="config"
+		;;
+
+		sbdir)
+			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			ACTION="navToStarbound"
+		;;
+
+		--boring)
+			COLORFUL=0
+		;;
+
+		--delete-workshop)
+			REMOVE_WORKSHOP_CONTENTS=1
+		;;
+
+		--start)
+			START_ON_UPDATE="1"
+		;;
+
+		--stop)
+			STOP_ON_UPDATE="1"
+		;;
+
+		--restart)
+			START_ON_UPDATE="1"
+			STOP_ON_UPDATE="1"
+		;;
+
+		--dry-run)
+			DRY_RUN="1"
+		;;
+
+		--cp)
+			COPY="1"
+		;;
+
+		--mod)
+			if [ -z "${EXTRA_MODS[@]}" ]; then
+				declare -gA EXTRA_MODS
+			fi
+			shift
+			mod="$(grep -oE "[0-9]+" <<< $1)"
+			[ "$mod" == "" ] && coecho "$FC_RED" "expected numeric id after --mod" && exit 1
+			EXTRA_MODS[${#EXTRA_MODS[@]}]="$mod"
+			unset mod
+		;;
+
+		*)
+			echo $1 unrecognized option
+			exit 1
+		;;
+	esac
+	
+	shift
+
 done
-echo ""
-echo "${#links[@]} mods"
-rm workshop.html
 
-#uncomment this to see names
-# for link in ${links[@]}; do
+$ACTION
 
-#     name="$(wget "$link" -O - 2> /dev/null | grep -oP "(?<=<div class\=(\"|\')workshopItemTitle(\"|\')>)(.*)(?=<\/div>)")"
-#     id="$(grep -oE "id=[0-9]+" <<< $link | grep -oE "[0-9]+")"
-#     echo "[$id]: $name"
-
-# done
