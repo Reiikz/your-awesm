@@ -257,6 +257,11 @@ function findSteam {
 		return 0
 	fi
 
+	if [ -d "$USER_HOME/.steam/steam/SteamApps" ]; then
+		declare -g STEAM="$USER_HOME/.steam/steam/SteamApps"
+		return 0
+	fi
+
 	if [ -d "$USER_HOME/.steam/debian-installation/steamapps" ]; then
 		declare -g STEAM="$USER_HOME/.steam/debian-installation/steamapps"
 		return 0
@@ -269,6 +274,11 @@ function findSteam {
 
 	if [ -d "$USER_HOME/.steam/steam/steamapps" ]; then
 		declare -g STEAM="$USER_HOME/.steam/steam/steamapps"
+		return 0
+	fi
+
+	if [ -d "$USER_HOME/.steam/steam/SteamApps" ]; then
+		declare -g STEAM="$USER_HOME/.steam/steam/SteamApps"
 		return 0
 	fi
 
