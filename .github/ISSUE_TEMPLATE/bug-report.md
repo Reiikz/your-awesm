@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Create a report to help us improve
+about: Report a bug to help your-awesm improove
 title: Concise bug description, Ex; "Can't find steam on Manjaro Linux"
 labels: ''
 assignees: Reiikz
