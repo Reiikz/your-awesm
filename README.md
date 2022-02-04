@@ -6,12 +6,16 @@ YOUR-AWESM takes care of launching/stopping a starbound server within a screen, 
 
 Target system: Debian Stable, feel free to ask for compatibility updates.
 
+### how to use it?
+
+[check the wiki](https://github.com/Reiikz/your-awesm/wiki)
+
 ### What works:
 * starting and stopping starbound through the script and systemd
 * updating mods from a modpack URL
 * updating mdos from the command line through content ids
 
-### What is planned;:
+### What is planned:
 * Profiling support; the ability to have multiple modpacks/map combinations for one server
 * Multi server support; the ability to manage multiple server profiles at once
 
