@@ -15,6 +15,7 @@ Not following the rules may or may not result in your issue being dismissed.
 OS and OS version
 Shell the script is running on
 Shell version
+exact script version use --version
 
 Installation source of steamcmd (tar.gz from valve, Debian repo package, etc) (if it's not being used specify it as such)
 Did you use force_install_dir? (yes, no)
