@@ -21,4 +21,8 @@ mkdir -p your-awesm-$VERSION-all/DEBIAN
 cat templates/control | sed "s/%version%/$VERSION/g" > your-awesm-$VERSION-all/DEBIAN/control
 echo "$SCRIPT" > your-awesm-$VERSION-all/usr/local/bin/star-server
 chmod 755 your-awesm-$VERSION-all/usr/local/bin/star-server
+sudo chown root:root your-awesm-$VERSION-all/usr/local/bin/star-server
 dpkg-deb -b your-awesm-$VERSION-all
+sudo chown $(whoami):$(whoami) your-awesm-$VERSION-all -R
+
+
