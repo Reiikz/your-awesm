@@ -4,6 +4,7 @@ VERSION="$1"
 
 if [ -z "$VERSION" ]; then
     echo "first argument must be package version"
+    exit 1
 fi
 
 rm -rf your-awesm-$VERSION-all
