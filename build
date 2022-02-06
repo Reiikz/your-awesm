@@ -1,0 +1,23 @@
+#!/bin/bash
+
+VERSION="$1"
+
+if [ -z "$VERSION" ]; then
+    echo "first argument must be package version"
+fi
+
+rm -rf your-awesm-$VERSION-all
+
+GIT_BRANCH="$(git branch -a | grep \* | sed "s/*//g" | sed -E "s/^\s+//g")"
+COMMIT_HASH="$(git rev-parse --verify HEAD)"
+COMMIT_HASH="${COMMIT_HASH:0:7}"
+
+SCRIPT="$(cat star-server | sed -E "s/VERSION=\".*$/VERSION=\"$VERSION\"/g" | sed "s/BUILT_FROM=\".*$/BUILT_FROM=\"$GIT_BRANCH-$COMMIT_HASH\"/g")"
+
+mkdir -p your-awesm-$VERSION-all/usr/local/bin
+mkdir -p your-awesm-$VERSION-all/DEBIAN
+
+cat templates/control | sed "s/%version%/$VERSION/g" > your-awesm-$VERSION-all/DEBIAN/control
+echo "$SCRIPT" > your-awesm-$VERSION-all/usr/local/bin/star-server
+chmod 755 your-awesm-$VERSION-all/usr/local/bin/star-server
+dpkg-deb -b your-awesm-$VERSION-all

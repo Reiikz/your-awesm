@@ -42,6 +42,7 @@ SOURCE_URL="https://github.com/Reiikz/your-awesm"
 ERROR_REPORTING_TO="https://github.com/Reiikz/your-awesm/issues"
 DOCUMENTATION="https://github.com/Reiikz/your-awesm/wiki"
 CONFIGVER=2
+BUILT_FROM="(NON PACKAGED VERSION)"
 
 #STARBOUND APP ID, this is the Game's APP ID and it is used to download mods, do not change it
 APPID=211820
@@ -79,6 +80,9 @@ SERVER_WORKERS="$USER_HOME/.local/lib/RZ.star-server/1/server_workers"
 mkdir -p $CONFIG_DIR
 COLORFUL=1
 
+RECOMMEND_COOL_MODS="yes"
+declare -ga COOLMODS=( [0]="1958993491" )
+declare -gA COOLMODS_REASON=( [1958993491]="the maker of $MYSELF is an 8 headed dragon and this is an awesome dragon race, you should totally try it" )
 
 ####### Ensure we're not running over an older setup using this script
 # function hfsejka8574sfhjhi {
@@ -559,6 +563,41 @@ function downloadMod {
 	fi
 }
 
+function recommendCoolMods {
+	if isYes "$RECOMMEND_COOL_MODS"; then
+		if isAssoc PARSED_MODPACK; then
+			declare -a MISSINGCOOLMODS
+			for id in "${COOLMODS[@]}"; do
+				local name="$(getModName "$id")"
+				local c=0
+				local preset="no"
+				for c in $(seq 0 ${PARSED_MODPACK[~lastItem]}); do
+					if [ "$id" == "${PARSED_MODPACK[$c~id]}" ]; then
+						present="yes"
+						break
+					fi
+					c="$(($c+1))"
+				done
+				if ! isYes "$present"; then
+					for id in ${EXTRA_MODS[@]}; do
+						if [ "$id" == "${PARSED_MODPACK[$c~id]}" ]; then
+							present="yes"
+							break
+						fi
+					done
+				fi
+				isYes "$present" && continue
+				MISSINGCOOLMODS[${#MISSINGCOOLMODS[@]}]="$id"
+			done
+			for x in ${MISSINGCOOLMODS[@]}; do
+				echo -e "$FC_DARK_GRAY$FC_BOLD""Also consider trying:"
+				echo -e "	$(getModName "$x")"
+				echo -e "		because ${COOLMODS_REASON[$x]}"
+			done
+		fi
+	fi
+}
+
 function linkMods {
 	closeIfNotProfile
 	if ! loadMods; then
@@ -741,6 +780,8 @@ function linkMods {
 
 		done
 
+		isYes "$RECOMMEND_COOL_MODS" && recommendCoolMods
+		
 		if [ $succesfullMods -gt 0 ]; then
 			coecho "$FC_LIGHT_GREEN$FC_BOLD" "Successfully linked $succesfullMods mods!"
 			coecho "$FC_LIGHT_GREEN$FC_BOLD" "Successfully linked $succesfullModsPak .pak files!"
@@ -1456,6 +1497,10 @@ function printCopyright {
 	coecho "$FC_BOLD$FC_LIGHT_GREEN" "For documentation refer to: $FC_BLUE$DOCUMENTATION"
 }
 
+function printGitVersion {
+	coecho "$FC_BOLD$FC_LIGHT_GREEN" "YOUR AWEsome Starbound Manager - Packaged from: $FC_LIGHT_CYAN$BUILT_FROM"
+}
+
 while [ $# -gt 0 ]; do
 
 	case $1 in
@@ -1628,6 +1673,11 @@ while [ $# -gt 0 ]; do
 		--version|-v)
 			ACTION="printCopyright"
 		;;
+
+		--git-version|-vv)
+			ACTION="printGitVersion"
+		;;
+
 
 		*)
 			coecho "$FC_BOLD$FC_LIGHT_CYAN" "$1$FC_LIGHT_YELLOW unrecognized option"
