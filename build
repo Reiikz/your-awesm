@@ -7,6 +7,7 @@ if [ -z "$VERSION" ]; then
 fi
 
 rm -rf your-awesm-$VERSION-all
+rm *.deb
 
 GIT_BRANCH="$(git branch -a | grep \* | sed "s/*//g" | sed -E "s/^\s+//g")"
 COMMIT_HASH="$(git rev-parse --verify HEAD)"
