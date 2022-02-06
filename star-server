@@ -114,33 +114,51 @@ function toLower {
 	echo "$1" | tr '[:upper:]' '[:lower:]'
 }
 
+function isYes {
+	if [ "yes" == "$(toLower "$1")" ]; then
+		return 0
+	fi
+	return 1
+}
+
 function saveVar {
 	[ "$1" != "" ] && declare -p $1 > /dev/null 2> /dev/null || return 1
     [ "$2" == "" ] && return 2
-    [ ! -w "$2" ] && return 3
-    local dir="$2"
+	local dir="$2"
     mkdir -p "$dir"
+    [ ! -w "$2" ] && return 3
 	if [ "$(toLower $3)" != "no" ] && [ "$3" != "0" ] && [ "$(toLower $3)" != "false" ]; then
-    	declare -p $1 | sed -E "s/^declare -/declare -g -/g" > $dir/$1.bvar 2> /dev/null
+    	declare -p $1 | sed -E "s/^declare -/declare -g -/g" > "$dir/$1.bvar" 2> /dev/null
 	else
-		declare -p $1 > $dir/$1.bvar 2> /dev/null
+		declare -p $1 > "$dir/$1.bvar" 2> /dev/null
 	fi
-    chmod 700 $dir/$1.bvar
+    chmod 700 "$dir/$1.bvar"
+	# echo saving var $1 to $2
+	# declare -p $1
+	# cat $dir/$1.bvar
 }
 
 function loadVar {
     unset "$1"
     local dir="$2"
-    if ! source $dir/$1.bvar 2> /dev/null; then
+    if ! source "$dir/$1.bvar" 2> /dev/null; then
         return 1
     else
-        declare -p $1
+        declare -p $1 | sed -E "s/^declare -/declare -g -/g"
         return 0
     fi
 }
 
 function isArr {
 	if [ ! -z "$(grep -oE "^declare\s+-(a|A)" <<< "$(declare -p $1 2> /dev/null)")" ]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+function isAssoc {
+	if [ ! -z "$(grep -oE "^declare\s+-A" <<< "$(declare -p $1 2> /dev/null)")" ]; then
 		return 0
 	else
 		return 1
@@ -158,7 +176,7 @@ function coecho {
 	if [ "$COLORFUL" == "1" ]; then
 		echo -e "$formatting$message$FC_RESET"
 	else
-		echo "$message"
+		echo "$message" | sed -E "s/\\\e\[[0-9]{1,2}(m)//g"
 	fi
 }
 
@@ -1021,7 +1039,7 @@ function unlink {
 }
 
 function declareProfile {
-	! isArr PROFILE && declare -Ag PROFILE
+	! isAssoc PROFILE && declare -Ag PROFILE
 }
 
 function heavilySanitize {
@@ -1041,6 +1059,49 @@ function renameAssocArray {
 	unset $2
 	eval "$(declare -p $1 | sed -E "s/^declare -/declare -g -/g" | sed -E "s/declare -g -A [A-Za-z0-9]+=/declare -g -A $2=/g")"
 	unset $1
+}
+
+function reloadAliasMap {
+	unset ALIASMAP
+	eval "$(loadVar ALIASMAP "$CONFIG_DIR")"
+	# echo reloaded 
+	# declare -p ALIASMAP
+	if [ ${#ALIASMAP[@]} -eq 0 ]; then
+		unset ALIASMAP
+		declare -Ag ALIASMAP
+	fi
+}
+
+function saveProfile {
+	saveVar PROFILE "${PROFILE[PROFILE]}" "true"
+}
+
+function saveCurrentProfile {
+	saveVar CURRENT_PROFILE "$CONFIG_DIR" "true"
+}
+
+function saveAliasMap {
+	saveVar ALIASMAP "$CONFIG_DIR" "true"
+}
+
+function removeAlias {
+	unset ALIASMAP[$1]
+	saveAliasMap
+}
+
+function loadProfile {
+	reloadAliasMap
+	eval "$(loadVar PROFILE "$CONFIG_DIR/${ALIASMAP[$CURRENT_PROFILE]}")"
+}
+
+function removeAllAliases {
+	coecho "$FC_BOLD$FC_LIGHT_GREEN" "Removing all aliases for $FC_LIGHT_CYAN$1"
+	for x in ${!ALIASMAP[@]}; do
+		if [ "${ALIASMAP[$x]}" == "$1" ]; then
+			unset ALIASMAP[$x]
+		fi
+	done
+	saveAliasMap
 }
 
 function isScreenNameInUse {
@@ -1065,60 +1126,96 @@ function isScreenNameInUse {
 }
 
 function rmProfile {
-    local dir="${PROFILE[SERVER_WORKER]}/assets"
-    if [ ! -z "$(file "$dir" | grep -o "symbolic link")" ]; then
-        [ -e "$dir" ] && rm "$dir"
-    else
-        [ -e "$dir" ] && rm -r "$dir"
-    fi
-    dir="${PROFILE[SERVER_WORKER]}/doc"
-    if [ ! -z "$(file "$dir" | grep -o "symbolic link")" ]; then
-        [ -e "$dir" ] && rm "$dir"
-    else
-        [ -e "$dir" ] && rm -r "$dir"
-    fi
-    dir="${PROFILE[SERVER_WORKER]}/tiled"
-    if [ ! -z "$(file "$dir" | grep -o "symbolic link")" ]; then
-        [ -e "$dir" ] && rm "$dir"
-    else
-        [ -e "$dir" ] && rm -r "$dir"
-    fi
-    [ -e "$SERVER_WORKERS/$CURRENT_PROFILE" ] && rm -r "$SERVER_WORKERS/$CURRENT_PROFILE"
+	local opt=""
+	if ! isYes "$FORCE"; then
+		coecho "$FC_BOLD$FC_LIGHT_YELLOW" "Deleting $FC_LIGHT_CYAN$CURRENT_PROFILE$FC_LIGHT_YELLOW are you sure?"
+		echo -n "[YES/NO]: "
+		read -r opt
+	else
+		opt="yes"
+	fi
+	if isYes "$opt"; then
+		coecho "$FC_BOLD$FC_LIGHT_GREEN" "Deleteing the profile: $FC_LIGHT_CYAN$CURRENT_PROFILE"
+
+		loadProfile
+		# declare -p ALIASMAP
+		
+		local dir="${PROFILE[SERVER_WORKER]}/assets"
+		if [ ! -z "$(file "$dir" | grep -o "symbolic link")" ]; then
+			[ -e "$dir" ] && rm "$dir"
+		else
+			[ -e "$dir" ] && rm -r "$dir"
+		fi
+		dir="${PROFILE[SERVER_WORKER]}/doc"
+		if [ ! -z "$(file "$dir" | grep -o "symbolic link")" ]; then
+			[ -e "$dir" ] && rm "$dir"
+		else
+			[ -e "$dir" ] && rm -r "$dir"
+		fi
+		dir="${PROFILE[SERVER_WORKER]}/tiled"
+		if [ ! -z "$(file "$dir" | grep -o "symbolic link")" ]; then
+			[ -e "$dir" ] && rm "$dir"
+		else
+			[ -e "$dir" ] && rm -r "$dir"
+		fi
+		rm -r "${PROFILE[PROFILE]}"
+		rm -r "${PROFILE[SERVER_WORKER]}"
+		removeAllAliases "$CURRENT_PROFILE"
+		reloadAliasMap
+		CURRENT_PROFILE=""
+		for x in ${ALIASMAP[@]}; do
+			CURRENT_PROFILE="$x"
+			break
+		done
+		saveCurrentProfile
+	fi
 }
 
 function createProfile {
-	! isArr PROFILE && declare -Ag PROFILE
-	[ -z "${PROFILE[ON_0_MODS]}" ] && PROFILE[ON_0_MODS]="skip"
-	[ -z "${PROFILE[TIMEOUT]}" ] && PROFILE[TIMEOUT]="30"
-	[ -z "${PROFILE[SLEEP]}" ] && PROFILE[SLEEP]="60"
-	[ -z "${PROFILE[SCREEN_NAME]}" ] && PROFILE[SCREEN_NAME]="$CURRENT_PROFILE"
-	[ -z "${PROFILE[PROFILE]}" ] && PROFILE[PROFILE]="$CONFIG_DIR/$CURRENT_PROFILE"
-	[ -z "${PROFILE[PROFILE_DIR]}" ] && PROFILE[PROFILE_DIR]="$SERVER_WORKERS/$CURRENT_PROFILE"
-	[ -z "${PROFILE[SERVER_WORKER]}" ] && PROFILE[SERVER_WORKER]="$SERVER_WORKERS/$CURRENT_PROFILE/Starbound_Server"
-	[ -z "${PROFILE[EXECUTABLE_DIR]}" ] && PROFILE[EXECUTABLE_DIR]="$SERVER_WORKERS/$CURRENT_PROFILE/Starbound_Server/linux"
-	[ -z "${PROFILE[DUMP_FILES]}" ] && PROFILE[DUMP_FILES]="$SERVER_WORKERS/$CURRENT_PROFILE/DUMP"
-	[ -z "${PROFILE[LOGFILES]}" ] && PROFILE[LOGFILES]="$SERVER_WORKERS/$CURRENT_PROFILE/logs"
-	[ -z "${PROFILE[LOGPARSE]}" ] && PROFILE[LOGPARSE]="yes"
-	[ -z "${PROFILE[RUN_SCRIPT]}" ] && PROFILE[RUN_SCRIPT]="./starbound_server"
-	[ -z "${PROFILE[COPY]}" ] && PROFILE[COPY]="0"
-	[ -z "${PROFILE[EASY_ACCESS]}" ] && PROFILE[EASY_ACCESS]="yes"
-	[ -z "${PROFILE[SELF_LOGGING]}" ] && PROFILE[SELF_LOGGING]="yes"
-	[ -z "${PROFILE[LOG_BACKUP]}" ] && PROFILE[LOG_BACKUP]="yes"
-	[ -z "${PROFILE[SERVICE_HANDLER]}" ] && PROFILE[SERVICE_HANDLER]="your-awesm"
-	PROFILE[SCREEN_NAME]="$(heavilySanitize "${PROFILE[SCREEN_NAME]}")"
-	if isScreenNameInUse "${PROFILE[SCREEN_NAME]}"; then
-		coecho "$FC_BOLD$FC_YELLOW" "there can't be two servers with the same screen name, conflict source: $FC_CYAN$CONFLICT$FC_LIGHT_YELLOW you can specify a name with $FC_LIGHT_CYAN--screen-name \"<screen name>\""
+	if [ -z "$CURRENT_PROFILE" ]; then
+		coecho "$FC_BOLD$FC_LIGHT_YELLOW" "Profile name must be set with $FC_LIGHT_CYAN""-s <profile name> or --name <profile name>"
+		return 1
 	fi
-	declare -p PROFILE
-	# linkify "$STEAM/common/Starbound/assets/" "${PROFILE[SERVER_WORKER]}/assets"
-	# linkify "$STEAM/common/Starbound/doc/" "${PROFILE[SERVER_WORKER]}/doc"
-	# linkify "$STEAM/common/Starbound/tiled/" "${PROFILE[SERVER_WORKER]}/tiled"
-	# mkdir -p "${PROFILE[SERVER_WORKER]}/linux"
-	# linkify "$STEAM/common/Starbound/linux/libsteam_api.so" "${PROFILE[SERVER_WORKER]}/linux/libsteam_api.so"
-	# linkify "$STEAM/common/Starbound/linux/sbinit.config" "${PROFILE[SERVER_WORKER]}/linux/sbinit.config"
-	# linkify "$STEAM/common/Starbound/linux/starbound_server" "${PROFILE[SERVER_WORKER]}/linux/starbound_server"
-	# linkify "$STEAM/common/Starbound/linux/make_versioned_json" "${PROFILE[SERVER_WORKER]}/linux/make_versioned_json"
-	# mkdir -p "${PROFILE[SERVER_WORKER]}/mods"
+	if findSteam; then
+		! isAssoc PROFILE && declare -Ag PROFILE
+		[ -z "${PROFILE[ON_0_MODS]}" ] && PROFILE[ON_0_MODS]="skip"
+		[ -z "${PROFILE[TIMEOUT]}" ] && PROFILE[TIMEOUT]="30"
+		[ -z "${PROFILE[SLEEP]}" ] && PROFILE[SLEEP]="60"
+		[ -z "${PROFILE[SCREEN_NAME]}" ] && PROFILE[SCREEN_NAME]="$CURRENT_PROFILE"
+		[ -z "${PROFILE[PROFILE]}" ] && PROFILE[PROFILE]="$CONFIG_DIR/$CURRENT_PROFILE"
+		[ -z "${PROFILE[PROFILE_DIR]}" ] && PROFILE[PROFILE_DIR]="$SERVER_WORKERS/$CURRENT_PROFILE"
+		[ -z "${PROFILE[SERVER_WORKER]}" ] && PROFILE[SERVER_WORKER]="$SERVER_WORKERS/$CURRENT_PROFILE/Starbound_Server"
+		[ -z "${PROFILE[EXECUTABLE_DIR]}" ] && PROFILE[EXECUTABLE_DIR]="$SERVER_WORKERS/$CURRENT_PROFILE/Starbound_Server/linux"
+		[ -z "${PROFILE[DUMP_FILES]}" ] && PROFILE[DUMP_FILES]="$SERVER_WORKERS/$CURRENT_PROFILE/DUMP"
+		[ -z "${PROFILE[LOGFILES]}" ] && PROFILE[LOGFILES]="$SERVER_WORKERS/$CURRENT_PROFILE/logs"
+		[ -z "${PROFILE[LOGPARSE]}" ] && PROFILE[LOGPARSE]="yes"
+		[ -z "${PROFILE[RUN_SCRIPT]}" ] && PROFILE[RUN_SCRIPT]="./starbound_server"
+		[ -z "${PROFILE[COPY]}" ] && PROFILE[COPY]="0"
+		[ -z "${PROFILE[EASY_ACCESS]}" ] && PROFILE[EASY_ACCESS]="yes"
+		[ -z "${PROFILE[SELF_LOGGING]}" ] && PROFILE[SELF_LOGGING]="yes"
+		[ -z "${PROFILE[LOG_BACKUP]}" ] && PROFILE[LOG_BACKUP]="yes"
+		[ -z "${PROFILE[SERVICE_HANDLER]}" ] && PROFILE[SERVICE_HANDLER]="your-awesm"
+		reloadAliasMap
+		[ -z "${ALIASMAP[$CURRENT_PROFILE]}" ] && ALIASMAP[$CURRENT_PROFILE]="$CURRENT_PROFILE"
+		PROFILE[SCREEN_NAME]="$(heavilySanitize "${PROFILE[SCREEN_NAME]}")"
+		if isScreenNameInUse "${PROFILE[SCREEN_NAME]}"; then
+			coecho "$FC_BOLD$FC_YELLOW" "there can't be two servers with the same screen name, conflict source: $FC_CYAN$CONFLICT$FC_LIGHT_YELLOW you can specify a name with $FC_LIGHT_CYAN--screen-name \"<screen name>\""
+		fi
+		# declare -p PROFILE
+		mkdir -p "${PROFILE[SERVER_WORKER]}"
+		linkify "$STEAM/common/Starbound/assets/" "${PROFILE[SERVER_WORKER]}/assets"
+		linkify "$STEAM/common/Starbound/doc/" "${PROFILE[SERVER_WORKER]}/doc"
+		linkify "$STEAM/common/Starbound/tiled/" "${PROFILE[SERVER_WORKER]}/tiled"
+		mkdir -p "${PROFILE[SERVER_WORKER]}/linux"
+		linkify "$STEAM/common/Starbound/linux/libsteam_api.so" "${PROFILE[SERVER_WORKER]}/linux/libsteam_api.so"
+		linkify "$STEAM/common/Starbound/linux/sbinit.config" "${PROFILE[SERVER_WORKER]}/linux/sbinit.config"
+		linkify "$STEAM/common/Starbound/linux/starbound_server" "${PROFILE[SERVER_WORKER]}/linux/starbound_server"
+		linkify "$STEAM/common/Starbound/linux/make_versioned_json" "${PROFILE[SERVER_WORKER]}/linux/make_versioned_json"
+		mkdir -p "${PROFILE[SERVER_WORKER]}/mods"
+		saveCurrentProfile
+		saveAliasMap
+		saveProfile
+	fi
 }
 
 function profile {
@@ -1132,20 +1229,41 @@ function profile {
 				ACTION="createProfile"
 			;;
 
+			delete)
+				ACTION="rmProfile"
+			;;
+
 			--screen-name)
 				local opt="$1"
-				if [ -z "${PROFILE[SCREEN_NAME]}" ]; then
+				if [ ! -z "${PROFILE[SCREEN_NAME]}" ]; then
 					coecho "$FC_BOLD$FC_LIGHT_CYAN" "$opt$FC_LIGHT_YELLOW can only defined once"
 					exit 1
 				fi
 				shift
 				if [ "$1" != "" ] && [ "$#" -gt 0 ]; then
-					MODPACK="$1"
-				else
-					echo "Expected data after $opt"
+					declareProfile
+					PROFILE[SCREEN_NAME]="$1"
+				elseING]="yes" [PROFILE]="/home/reiikz/.config/RZ.star-server/2/starbound" [DUMP_FILES]="/home/reiikz/.local/lib/RZ.star-server/1/server_workers/starbound/DUMP" [ON_0_MODS]="skip" [LOGFILES]="/home/reiikz/.local/lib/RZ.star-server/1/server_workers/starbound/logs" [RUN_SCRIPT]="./starbound_server" [SERVICE_HANDLER]="your-awesm" [LOG_BACKUP]
+					coecho "$FC_BOLD$FC_LIGHT_YELLOW" "Expected data after $FC_LIGHT_CYAN$opt"
 				fi
-				declareProfile
-				PROFILE[SCREEN_NAME]="$1"
+			;;
+
+			--name|-n|-s)
+				local opt="$1"
+				if [ ! -z "$CURRENT_PROFILE" ]; then
+					coecho "$FC_BOLD$FC_LIGHT_CYAN" "$opt$FC_LIGHT_YELLOW can only defined once or server name already set"
+					exit 1
+				fi
+				shift
+				if [ "$1" != "" ] && [ "$#" -gt 0 ]; then
+					CURRENT_PROFILE="$1"
+				else
+					coecho "$FC_BOLD$FC_LIGHT_YELLOW" "Expected data after $FC_LIGHT_CYAN$opt"
+				fi
+			;;
+
+			--force)
+				FORCE="yes"
 			;;
 
 			*)
@@ -1186,7 +1304,7 @@ while [ $# -gt 0 ]; do
 			if [ "$1" != "" ] && [ "$#" -gt 0 ]; then
 				MODPACK="$1"
 			else
-				echo "Expected modpack url after relink"
+				coecho "$FC_BOLD$FC_LIGHT_YELLOW" "Expected modpack url after $FC_LIGHT_CYAN""relink"
 			fi
 			ACTION="update"
 		;;
@@ -1202,7 +1320,7 @@ while [ $# -gt 0 ]; do
 			if [ "$1" != "" ] && [ "$#" -gt 0 ]; then
 				MODPACK="$1"
 			else
-				echo "Expected modpack url after relink"
+				coecho "$FC_BOLD$FC_LIGHT_YELLOW" "Expected modpack url after $FC_LIGHT_CYAN""relink"
 			fi
 			ACTION="relink"
 		;;
@@ -1277,25 +1395,6 @@ while [ $# -gt 0 ]; do
 			unset mod
 		;;
 
-		--new-server|--create-server|--create-profile|--profile-create|--server-create|--server-new|--profile-new|--new-profile)
-			pop="$1"
-			shift
-			if [ "$1" != "" ] && [ "$#" -gt 0 ]; then
-				eval "$(loadVar ALIASMAP "$CONFIG_DIR")"
-				if [ ! -z "${ALIASMAP[$1]}" ]; then
-					coecho "$FC_BOLD$FC_YELLOW" "'$FC_LIGHT_CYAN$1$FC_YELLOW' already exists as server or alias, please use a different name"
-					exit 1
-				else
-					declare -g -- CURRENT_PROFILE="$1"
-					saveVar $CURRENT_PROFILE "$CONFIG_DIR"
-				fi
-			else
-				coecho "$FC_YELLOW$FC_BOLD" "Expected server profile name or alias after $FC_LIGHT_CYAN$pop"
-				exit 1
-			fi
-			ACTION="createProfile"
-		;;
-
 		-s|--server|--profile|--server-profile|--profile-server)
 			pop="$1"
 			shift
@@ -1306,23 +1405,13 @@ while [ $# -gt 0 ]; do
 					exit 1
 				else
 					declare -g -- CURRENT_PROFILE="$1"
-					saveVar $CURRENT_PROFILE "$CONFIG_DIR"
+					saveVar CURRENT_PROFILE "$CONFIG_DIR"
 				fi
 			else
-				echo "Expected server profile name or alias after $pop"
+				coecho "$FC_BOLD$FC_YELLOW" "Expected server profile name or alias after $FC_LIGHT_CYAN$pop"
 				exit 1
 			fi
 			unset pop
-		;;
-
-		--self-logging)
-			pop="$1"
-			if [ -z "$CURRENT_PROFILE" ]; then
-				[ -z "$CURRENT_PROFILE" ] && eval "$(loadVar CURRENT_PROFILE "$CONFIG_DIR")"
-				eval "$(loadVar ALIASMAP "$CONFIG_DIR")"
-				[ ! -z "${ALIASMAP[$CURRENT_PROFILE]}" ] && eval "$(loadVar PROFILE "$CONFIG_DIR/${ALIASMAP[$CURRENT_PROFILE]}")"
-				
-			fi
 		;;
 
 		-h|--help|--h)
@@ -1342,8 +1431,12 @@ while [ $# -gt 0 ]; do
 			exit 1
 		;;
 
+		--force)
+			FORCE="yes"
+		;;
+
 		*)
-			echo $1 unrecognized option
+			coecho "$FC_BOLD$FC_LIGHT_CYAN" "$1$FC_LIGHT_YELLOW unrecognized option"
 			exit 1
 		;;
 	esac
@@ -1357,7 +1450,7 @@ done
 
 [ -z "$CURRENT_PROFILE" ] && eval "$(loadVar CURRENT_PROFILE "$CONFIG_DIR")"
 eval "$(loadVar ALIASMAP "$CONFIG_DIR")"
-[ ! -z "${ALIASMAP[$CURRENT_PROFILE]}" ] && eval "$(loadVar PROFILE "$CONFIG_DIR/${ALIASMAP[$CURRENT_PROFILE]}")"
+[ ! -z "$CURRENT_PROFILE" ] && [ ! -z "${ALIASMAP[$CURRENT_PROFILE]}" ] && eval "$(loadVar PROFILE "$CONFIG_DIR/${ALIASMAP[$CURRENT_PROFILE]}")"
 
 #do not run if no action specified
 if [ -z "$ACTION" ] && [ "$CURRENT_PROFILE" != "" ]; then
@@ -1370,7 +1463,7 @@ if [ -z "$ACTION" ] && [ "$CURRENT_PROFILE" != "" ]; then
 	ACTION="printOptions"
 fi
 
-if [ "$CURRENT_PROFILE" == "" ] && [ "$ACTION" != "printOptions" ]; then
+if [ "$CURRENT_PROFILE" == "" ] && [ "$ACTION" != "printOptions" ] && [ -z "$(grep -oE "^profile\s+\"*create" <<< $ACTION)" ]; then
 	coecho "$FC_LIGHT_GREEN$FC_BOLD" "Current profile is not set, please change your current profile with $FC_LIGHT_CYAN$MYSELF -s <profile name> $FC_LIGHT_GREEN""or $FC_LIGHT_CYAN$MYSELF -s <profile alias>"
 	exit 1
 fi
