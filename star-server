@@ -418,12 +418,22 @@ function findSteam {
 		declare -g -- STEAM="$USER_HOME/.steam/debian-installation/steamapps"
 		return 0
 	fi
+
+	if [ -d "$USER_HOME/Steam/steamapps" ]; then
+		declare -g -- STEAM="$USER_HOME/Steam/steamapps"
+		return 0
+	fi
 	
 	coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Steam folder not found running 'steamcmd \"+quit\"'"
 	mkdir -p ${PROFILE[DUMP_FILES]}
 
 	mkdir -p ${PROFILE[DUMP_FILES]}
 	/usr/games/steamcmd "+quit" 2>&1 > ${PROFILE[DUMP_FILES]}/latestSteamCMDdump.stdout
+
+	if [ -d "$USER_HOME/Steam/steamapps" ]; then
+		declare -g -- STEAM="$USER_HOME/Steam/steamapps"
+		return 0
+	fi
 
 	if [ -d "$USER_HOME/.steam/steam/steamapps" ]; then
 		declare -g -- STEAM="$USER_HOME/.steam/steam/steamapps"
