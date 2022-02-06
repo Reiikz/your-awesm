@@ -422,6 +422,7 @@ function findSteam {
 	coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Steam folder not found running 'steamcmd \"+quit\"'"
 	mkdir -p ${PROFILE[DUMP_FILES]}
 
+	mkdir -p ${PROFILE[DUMP_FILES]}
 	/usr/games/steamcmd "+quit" 2>&1 > ${PROFILE[DUMP_FILES]}/latestSteamCMDdump.stdout
 
 	if [ -d "$USER_HOME/.steam/steam/steamapps" ]; then
