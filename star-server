@@ -72,6 +72,7 @@ FC_WHITE="\e[97m"
 
 MY_UID="your-awesm.$(basename ${BASH_SOURCE[0]}).$$"
 MYSELF="$(basename ${BASH_SOURCE[0]})"
+MY_SOURCE="${BASH_SOURCE[0]}"
 USER_HOME="$(getent passwd $(whoami) | cut -d':' -f6)"
 
 CONFIG_DIR="$USER_HOME/.config/RZ.star-server/$CONFIGVER"
@@ -83,6 +84,8 @@ COLORFUL=1
 RECOMMEND_COOL_MODS="yes"
 declare -ga COOLMODS=( [0]="1958993491" )
 declare -gA COOLMODS_REASON=( [1958993491]="the maker of $MYSELF is an 8 headed dragon and this is an awesome dragon race, you should totally try it" )
+
+UNIT_FILE_TEMPLATE="/usr/local/lib/reiikz/your-awesm/templates/template-unit-file.service"
 
 ####### Ensure we're not running over an older setup using this script
 # function hfsejka8574sfhjhi {
@@ -1224,7 +1227,9 @@ function saveProfile {
 }
 
 function saveCurrentProfile {
-	saveVar CURRENT_PROFILE "$CONFIG_DIR" "true"
+	if [ -z "$PROFILE_OVERRIDE" ]; then
+		saveVar CURRENT_PROFILE "$CONFIG_DIR" "true"
+	fi
 }
 
 function saveAliasMap {
@@ -1328,6 +1333,8 @@ function createProfile {
 		[ -z "${PROFILE[ON_0_MODS]}" ] && PROFILE[ON_0_MODS]="skip"
 		[ -z "${PROFILE[TIMEOUT]}" ] && PROFILE[TIMEOUT]="30"
 		[ -z "${PROFILE[SLEEP]}" ] && PROFILE[SLEEP]="60"
+		[ -z "${PROFILE[SERVICE_NAME]}" ] && PROFILE[SERVICE_NAME]="$CURRENT_PROFILE"
+		[ -z "${PROFILE[RESTART_MODE]}" ] && PROFILE[RESTART_MODE]="always"
 		[ -z "${PROFILE[SCREEN_NAME]}" ] && PROFILE[SCREEN_NAME]="$CURRENT_PROFILE"
 		[ -z "${PROFILE[PROFILE]}" ] && PROFILE[PROFILE]="$CONFIG_DIR/$CURRENT_PROFILE"
 		[ -z "${PROFILE[PROFILE_DIR]}" ] && PROFILE[PROFILE_DIR]="$SERVER_WORKERS/$CURRENT_PROFILE"
@@ -1349,6 +1356,7 @@ function createProfile {
 			coecho "$FC_BOLD$FC_YELLOW" "there can't be two servers with the same screen name, conflict source: $FC_CYAN$CONFLICT$FC_LIGHT_YELLOW you can specify a name with $FC_LIGHT_CYAN--screen-name \"<screen name>\""
 			return 1
 		fi
+		setServiceHandler your-awesm
 		# declare -p PROFILE
 		mkdir -p "${PROFILE[SERVER_WORKER]}"
 		linkify "$STEAM/common/Starbound/assets/" "${PROFILE[SERVER_WORKER]}/assets"
@@ -1411,12 +1419,109 @@ function listThings {
 	eval "$ACTION"
 }
 
+function showServiceHandler {
+	coecho "$FC_BOLD$FC_LIGHT_GREEN" "start/stop call for: $FC_LIGHT_CYAN$CURRENT_PROFILE: $FC_WHITE${PROFILE[SERVICE_HANDLER]}"
+	coecho "$FC_BOLD" "	$FC_WHITE${PROFILE[START_COMMAND]} $FC_LIGHT_GREEN//start"
+	coecho "$FC_BOLD" "	$FC_WHITE${PROFILE[STOP_COMMAND]} $FC_LIGHT_GREEN//stop"
+}
+
+function setServiceHandler {
+	if ! isAssoc PROFILE; then
+		coecho "$FC_BOLD$FC_LIGHT_YELLOW" "No current profile"
+	fi
+	local target=""
+	case $1 in
+		systemd)
+			target="systemd"
+			PROFILE[STOP_COMMAND]="sudo systemctl stop ${PROFILE[SERVICE_NAME]}"
+			PROFILE[START_COMMAND]="sudo systemctl start ${PROFILE[SERVICE_NAME]}"
+			local restartmode=""
+			case ${PROFILE[RESTART_MODE]} in
+
+				always)
+					restartmode="always"
+				;;
+
+				*)
+					coecho "$FC_BOLD$FC_LIGHT_CYAN" "${PROFILE[RESTART_MODE]}$FC_LIGHT_YELLOW is not a recognized restart mode"
+					return 1
+				;;
+			esac
+			local mysource="$(sed "s/\//\\\\\//g" <<< "$MY_SOURCE")"
+			local unitfile="$(cat $UNIT_FILE_TEMPLATE | sed "s/%username%/$(whoami)/g" | \
+			sed "s/%restart%/$restartmode/g" | \
+			sed "s/%exec_stop%/$mysource -S $CURRENT_PROFILE stop/g" | \
+			sed "s/%exec_start%/$mysource -S $CURRENT_PROFILE demonize/g" | \
+			sed "s/%description%/Starbound Server ($CURRENT_PROFILE)/g")"
+			coecho "$FC_BOLD$FC_LIGHT_GREEN" "Please ask your system administrator to create the file: "
+			coecho "$FC_BOLD$FC_LIGHT_CYAN" "	/etc/systemd/system/${PROFILE[SERVICE_NAME]}.service"
+			coecho "$FC_BOLD$FC_LIGHT_GREEN" "with the contents (the $FC_LIGHT_CYAN""cyan$FC_LIGHT_GREEN part not the $FC_LIGHT_YELLOW""yellow$FC_LIGHT_GREEN one): "
+			coecho "$FC_BOLD$FC_LIGHT_YELLOW" "__________________________________________"
+			coecho "$FC_BOLD$FC_LIGHT_CYAN" "$unitfile"
+			coecho "$FC_BOLD$FC_LIGHT_YELLOW" "------------------------------------------"
+			
+		;;
+
+		your-awesm)
+			target="your-awesm"
+			PROFILE[STOP_COMMAND]="$MY_SOURCE -S $CURRENT_PROFILE stop"
+			PROFILE[START_COMMAND]="$MY_SOURCE -S $CURRENT_PROFILE start"
+		;;
+
+		*)
+			coecho "$FC_BOLD$FC_LIGHT_CYAN" "$1$FC_LIGHT_YELLOW is not a valid service handler"
+			return 1
+		;;
+	esac
+	PROFILE[SERVICE_HANDLER]="$target"
+	saveProfile
+	showServiceHandler
+}
+
+function serverHandler {
+	closeIfNotProfile
+	if [ $# -eq 0 ]; then
+		showServiceHandler
+		return 0
+	fi
+	unset ACTION
+	while [ $# -gt 0 ]; do
+		
+		case $1 in
+
+			set)
+				pop="$1"
+				shift
+				if [ "$1" != "" ] && [ "$#" -gt 0 ]; then
+					ACTION="setServiceHandler \"$1\""
+				else
+					coecho "$FC_BOLD$FC_YELLOW" "Expected service handler ($FC_LIGHT_CYAN""your-awesm$FC_LIGHT_YELLOW|$FC_LIGHT_CYAN""systemd$FC_LIGHT_YELLOW) after $FC_LIGHT_CYAN$pop"
+					exit 1
+				fi
+				unset pop
+			;;
+
+		esac
+		
+		shift
+	done
+	eval "$ACTION"
+}
+
 function profile {
 	unset ACTION
 	declare -A definedSingularOptions
 	while [ $# -gt 0 ]; do
 		
 		case $1 in
+
+			handler)
+				ACTION="serverHandler"
+				while [ $# -gt 0 ]; do
+					shift
+					[ $# -gt 0 ] && ACTION="$ACTION \"$1\""
+				done
+			;;
 
 			current)
 				coecho "$FC_BOLD$FC_GREEN" "$CURRENT_PROFILE"
@@ -1631,6 +1736,25 @@ while [ $# -gt 0 ]; do
 			[ "$mod" == "" ] && coecho "$FC_RED" "expected numeric id after --mod" && exit 1
 			EXTRA_MODS[${#EXTRA_MODS[@]}]="$mod"
 			unset mod
+		;;
+
+		-S)
+			pop="$1"
+			shift
+			if [ "$1" != "" ] && [ "$#" -gt 0 ]; then
+				reloadAliasMap
+				if [ -z "${ALIASMAP[$1]}" ]; then
+					coecho "$FC_BOLD$FC_YELLOW" "'$FC_LIGHT_CYAN$1$FC_YELLOW' is not a valid server profile, please use: $FC_LIGHT_CYAN$MYSELF profile create \"$1\""
+					exit 1
+				else
+					declare -g -- CURRENT_PROFILE="$1"
+					declare -g -- PROFILE_OVERRIDE="$1"
+				fi
+			else
+				coecho "$FC_BOLD$FC_YELLOW" "Expected server profile name or alias after $FC_LIGHT_CYAN$pop"
+				exit 1
+			fi
+			unset pop
 		;;
 
 		-s|--server|--profile|--server-profile|--profile-server)

@@ -23,6 +23,12 @@ cat templates/control | sed "s/%version%/$VERSION/g" > your-awesm-$VERSION-all/D
 echo "$SCRIPT" > your-awesm-$VERSION-all/usr/local/bin/star-server
 chmod 755 your-awesm-$VERSION-all/usr/local/bin/star-server
 sudo chown root:root your-awesm-$VERSION-all/usr/local/bin/star-server
+
+mkdir -p your-awesm-$VERSION-all/usr/local/lib/reiikz/your-awesm/templates/
+cp templates/template-unti-file.service your-awesm-$VERSION-all/usr/local/lib/reiikz/your-awesm/templates
+chmod 644 templates/template-unti-file.service your-awesm-$VERSION-all/usr/local/lib/reiikz/your-awesm/templates -R
+sudo chown root:root your-awesm-$VERSION-all/usr/local/lib/reiikz/ -R
+
 dpkg-deb -b your-awesm-$VERSION-all
 sudo chown $(whoami):$(whoami) your-awesm-$VERSION-all -R
 
