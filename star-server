@@ -1205,6 +1205,21 @@ function showDumpDir {
 	coecho "$FC_GREEN$FC_BOLD" "${PROFILE[DUMP_FILES]}"
 }
 
+function isRunning {
+	if [ "$(isScreen "${PROFILE[SCREEN_NAME]}")" == "" ]; then
+		return 1
+	fi
+	return 0
+}
+
+function showRunning {
+	if [ "$(isScreen "${PROFILE[SCREEN_NAME]}")" == "" ]; then
+		coecho "$FC_LIGHT_CYAN$FC_BOLD" "Server is not running"
+	else
+		coecho "$FC_LIGHT_CYAN$FC_BOLD" "Server is running"
+	fi
+}
+
 function renameAssocArray {
 	unset $2
 	eval "$(declare -p $1 | sed -E "s/^declare -/declare -g -/g" | sed -E "s/declare -g -A [A-Za-z0-9]+=/declare -g -A $2=/g")"
@@ -1244,6 +1259,16 @@ function removeAlias {
 function loadProfile {
 	reloadAliasMap
 	eval "$(loadVar PROFILE "$CONFIG_DIR/${ALIASMAP[$CURRENT_PROFILE]}")"
+	if [ ! -e "$USER_HOME/StarboundServer" ] || [ -L "$USER_HOME/StarboundServer" ]; then
+		if isYes "${PROFILE[EASY_ACCESS]}"; then
+			if [ -L "$USER_HOME/StarboundServer" ]; then
+				rm "$USER_HOME/StarboundServer"
+			fi
+			ln -s "${PROFILE[SERVER_WORKER]}" "$USER_HOME/StarboundServer"
+		else
+			[ -L "$USER_HOME/StarboundServer" ] && rm -f "$USER_HOME/StarboundServer"
+		fi
+	fi
 }
 
 function removeAllAliases {
@@ -1356,7 +1381,7 @@ function createProfile {
 			coecho "$FC_BOLD$FC_YELLOW" "there can't be two servers with the same screen name, conflict source: $FC_CYAN$CONFLICT$FC_LIGHT_YELLOW you can specify a name with $FC_LIGHT_CYAN--screen-name \"<screen name>\""
 			return 1
 		fi
-		setServiceHandler your-awesm
+		setServiceHandler your-awesm yes
 		# declare -p PROFILE
 		mkdir -p "${PROFILE[SERVER_WORKER]}"
 		linkify "$STEAM/common/Starbound/assets/" "${PROFILE[SERVER_WORKER]}/assets"
@@ -1392,6 +1417,11 @@ function listProfiles {
 		coecho "$FC_BOLD$FC_LIGHT_GREEN" "$x"
 		coecho "$FC_BOLD$FC_LIGHT_GREEN" "	Starbound:	${PROFILE[SERVER_WORKER]}"
 		coecho "$FC_BOLD$FC_LIGHT_GREEN" "	Screen:		${PROFILE[SCREEN_NAME]}"
+		if isRunning; then
+			coecho "$FC_BOLD$FC_LIGHT_GREEN" "	Status:		$FC_CYAN""Running"
+		else
+			coecho "$FC_BOLD$FC_LIGHT_GREEN" "	Status:		$FC_RED""Stopped"
+		fi
 	done
 }
 
@@ -1425,10 +1455,23 @@ function showServiceHandler {
 	coecho "$FC_BOLD" "	$FC_WHITE${PROFILE[STOP_COMMAND]} $FC_LIGHT_GREEN//stop"
 }
 
+function findSystemctl {
+	whereis systemctl | cut -d' ' -f2
+}
+
+function dumpProfile {
+	declare -p CURRENT_PROFILE
+	declare -p PROFILE_OVERRIDE 2> /dev/null
+	declare -p ALIASMAP
+	echo ""
+	declare -p PROFILE
+}
+
 function setServiceHandler {
 	if ! isAssoc PROFILE; then
 		coecho "$FC_BOLD$FC_LIGHT_YELLOW" "No current profile"
 	fi
+	local silent="$2"
 	local target=""
 	case $1 in
 		systemd)
@@ -1443,29 +1486,59 @@ function setServiceHandler {
 				;;
 
 				*)
-					coecho "$FC_BOLD$FC_LIGHT_CYAN" "${PROFILE[RESTART_MODE]}$FC_LIGHT_YELLOW is not a recognized restart mode"
+					! isYes "$silent" && coecho "$FC_BOLD$FC_LIGHT_CYAN" "${PROFILE[RESTART_MODE]}$FC_LIGHT_YELLOW is not a recognized restart mode"
 					return 1
 				;;
 			esac
 			local mysource="$(sed "s/\//\\\\\//g" <<< "$MY_SOURCE")"
+			local systemctllocation="$(findSystemctl)"
 			local unitfile="$(cat $UNIT_FILE_TEMPLATE | sed "s/%username%/$(whoami)/g" | \
 			sed "s/%restart%/$restartmode/g" | \
 			sed "s/%exec_stop%/$mysource -S $CURRENT_PROFILE stop/g" | \
 			sed "s/%exec_start%/$mysource -S $CURRENT_PROFILE demonize/g" | \
 			sed "s/%description%/Starbound Server ($CURRENT_PROFILE)/g")"
-			coecho "$FC_BOLD$FC_LIGHT_GREEN" "Please ask your system administrator to create the file: "
-			coecho "$FC_BOLD$FC_LIGHT_CYAN" "	/etc/systemd/system/${PROFILE[SERVICE_NAME]}.service"
-			coecho "$FC_BOLD$FC_LIGHT_GREEN" "with the contents (the $FC_LIGHT_CYAN""cyan$FC_LIGHT_GREEN part not the $FC_LIGHT_YELLOW""yellow$FC_LIGHT_GREEN one): "
-			coecho "$FC_BOLD$FC_LIGHT_YELLOW" "__________________________________________"
-			coecho "$FC_BOLD$FC_LIGHT_CYAN" "$unitfile"
-			coecho "$FC_BOLD$FC_LIGHT_YELLOW" "------------------------------------------"
 			
+			if ! isYes "$silent"; then
+				coecho "$FC_BOLD$FC_LIGHT_GREEN" "Please contact your system administrator to complete the process, steps: "
+				coecho "$FC_BOLD$FC_LIGHT_CYAN" "	/etc/systemd/system/${PROFILE[SERVICE_NAME]}.service"
+				coecho "$FC_BOLD$FC_LIGHT_GREEN" "with the contents (the $FC_LIGHT_CYAN""cyan$FC_LIGHT_GREEN part not the $FC_LIGHT_YELLOW""yellow$FC_LIGHT_GREEN one): "
+				coecho "$FC_BOLD$FC_LIGHT_YELLOW" "__________________________________________"
+				coecho "$FC_BOLD$FC_LIGHT_CYAN" "$unitfile"
+				coecho "$FC_BOLD$FC_LIGHT_YELLOW" "------------------------------------------"
+				coecho "$FC_BOLD$FC_LIGHT_GREEN" "you'll also need to add the following lines to the $FC_LIGHT_CYAN""/etc/sudoers$FC_LIGHT_GREEN file: "
+				coecho "$FC_BOLD$FC_LIGHT_YELLOW" "__________________________________________"
+				coecho "$FC_BOLD$FC_LIGHT_CYAN" "$(whoami) ALL=NOPASSWD:$systemctllocation start ${PROFILE[SERVICE_NAME]}"
+				coecho "$FC_BOLD$FC_LIGHT_CYAN" "$(whoami) ALL=NOPASSWD:$systemctllocation stop ${PROFILE[SERVICE_NAME]}"
+				coecho "$FC_BOLD$FC_LIGHT_YELLOW" "------------------------------------------"
+				coecho "$FC_BOLD$FC_LIGHT_GREEN" "Then run: "
+				coecho "$FC_BOLD$FC_LIGHT_YELLOW" "__________________________________________"
+				coecho "$FC_BOLD$FC_LIGHT_CYAN" "sudo systemctl daemon-reload"
+				coecho "$FC_BOLD$FC_LIGHT_YELLOW" "------------------------------------------"
+			fi
 		;;
 
 		your-awesm)
 			target="your-awesm"
 			PROFILE[STOP_COMMAND]="$MY_SOURCE -S $CURRENT_PROFILE stop"
 			PROFILE[START_COMMAND]="$MY_SOURCE -S $CURRENT_PROFILE start"
+			local systemctllocation="$(findSystemctl)"
+			if ! isYes "$silent"; then
+				coecho "$FC_BOLD$FC_LIGHT_GREEN" "if this profile was previously setup as a service you should remove the next lines from the $FC_LIGHT_CYAN""/etc/sudoers$FC_LIGHT_GREEN file:"
+				coecho "$FC_BOLD$FC_LIGHT_YELLOW" "__________________________________________"
+				coecho "$FC_BOLD$FC_LIGHT_CYAN" "$(whoami) ALL=NOPASSWD:$systemctllocation start ${PROFILE[SERVICE_NAME]}"
+				coecho "$FC_BOLD$FC_LIGHT_CYAN" "$(whoami) ALL=NOPASSWD:$systemctllocation stop ${PROFILE[SERVICE_NAME]}"
+				coecho "$FC_BOLD$FC_LIGHT_YELLOW" "------------------------------------------"
+				if [ -f "/etc/systemd/system/${PROFILE[SERVICE_NAME]}.service" ]; then
+					coecho "$FC_BOLD$FC_LIGHT_GREEN" "and also delte the file: $FC_LIGHT_CYAN""/etc/systemd/system/${PROFILE[SERVICE_NAME]}.service"
+					coecho "$FC_BOLD$FC_LIGHT_YELLOW" "__________________________________________"
+					coecho "$FC_BOLD$FC_LIGHT_CYAN" "sudo rm \"/etc/systemd/system/${PROFILE[SERVICE_NAME]}.service\""
+					coecho "$FC_BOLD$FC_LIGHT_YELLOW" "------------------------------------------"
+					coecho "$FC_BOLD$FC_LIGHT_GREEN" "Then run: "
+					coecho "$FC_BOLD$FC_LIGHT_YELLOW" "__________________________________________"
+					coecho "$FC_BOLD$FC_LIGHT_CYAN" "sudo systemctl daemon-reload"
+					coecho "$FC_BOLD$FC_LIGHT_YELLOW" "------------------------------------------"
+				fi
+			fi
 		;;
 
 		*)
@@ -1508,6 +1581,40 @@ function serverHandler {
 	eval "$ACTION"
 }
 
+function toggleEasyAccess {
+	closeIfNotProfile
+	if isYes "${PROFILE[EASY_ACCESS]}"; then
+		PROFILE[EASY_ACCESS]="no"
+		coecho "$FC_BOLD$FC_LIGHT_GREEN" "Easy access has been set to: $FC_LIGHT_CYAN""off"
+	else
+		PROFILE[EASY_ACCESS]="yes"
+		coecho "$FC_BOLD$FC_LIGHT_GREEN" "Easy access has been set to: $FC_LIGHT_CYAN""on"
+	fi
+	saveProfile
+}
+
+function setProfileServiceName {
+	closeIfNotProfile
+	if isRunning; then
+		coecho "$FC_BOLD$FC_LIGHT_YELLOW" "Running this command while the server is in execution is a bad idea, nothing done"
+		return 1
+	fi
+	PROFILE[SERVICE_NAME]="$(heavilySanitize "$1")"
+	coecho "$FC_BOLD$FC_LIGHT_GREEN" "Service name set to: $FC_LIGHT_CYAN${PROFILE[SERVICE_NAME]}"
+	saveProfile
+}
+
+function setProfileScreenName {
+	closeIfNotProfile
+	if isRunning; then
+		coecho "$FC_BOLD$FC_LIGHT_YELLOW" "Running this command while the server is in execution is a bad idea, nothing done"
+		return 1
+	fi
+	PROFILE[SCREEN_NAME]="$(heavilySanitize "$1")"
+	coecho "$FC_BOLD$FC_LIGHT_GREEN" "Service name set to: $FC_LIGHT_CYAN${PROFILE[SCREEN_NAME]}"
+	saveProfile
+}
+
 function profile {
 	unset ACTION
 	declare -A definedSingularOptions
@@ -1521,6 +1628,34 @@ function profile {
 					shift
 					[ $# -gt 0 ] && ACTION="$ACTION \"$1\""
 				done
+			;;
+
+			easy-access)
+				ACTION="toggleEasyAccess"
+			;;
+
+			service-name)
+				pop="$1"
+				shift
+				if [ "$1" != "" ] && [ "$#" -gt 0 ]; then
+					ACTION="setProfileServiceName \"$1\""
+				else
+					coecho "$FC_BOLD$FC_YELLOW" "Expected service name after $FC_LIGHT_CYAN$pop"
+					exit 1
+				fi
+				unset pop
+			;;
+
+			screen-name)
+				pop="$1"
+				shift
+				if [ "$1" != "" ] && [ "$#" -gt 0 ]; then
+					ACTION="setProfileScreenName \"$1\""
+				else
+					coecho "$FC_BOLD$FC_YELLOW" "Expected screen name after $FC_LIGHT_CYAN$pop"
+					exit 1
+				fi
+				unset pop
 			;;
 
 			current)
@@ -1539,6 +1674,7 @@ function profile {
 					else
 						declare -g -- CURRENT_PROFILE="$1"
 						saveCurrentProfile
+						loadProfile
 					fi
 				else
 					coecho "$FC_BOLD$FC_YELLOW" "Expected server profile name or alias after $FC_LIGHT_CYAN$pop"
@@ -1636,6 +1772,11 @@ while [ $# -gt 0 ]; do
 			ACTION="stop"
 		;;
 
+		status)
+			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			ACTION="showRunning"
+		;;
+
 		update)
 			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
 			shift
@@ -1696,6 +1837,11 @@ while [ $# -gt 0 ]; do
 		dumpdir)
 			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
 			ACTION="showDumpDir"
+		;;
+
+		dump-profile)
+			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			ACTION="dumpProfile"
 		;;
 
 		--boring)
@@ -1829,15 +1975,11 @@ done
 
 [ -z "$CURRENT_PROFILE" ] && eval "$(loadVar CURRENT_PROFILE "$CONFIG_DIR")"
 eval "$(loadVar ALIASMAP "$CONFIG_DIR")"
-[ ! -z "$CURRENT_PROFILE" ] && [ ! -z "${ALIASMAP[$CURRENT_PROFILE]}" ] && eval "$(loadVar PROFILE "$CONFIG_DIR/${ALIASMAP[$CURRENT_PROFILE]}")"
+[ ! -z "$CURRENT_PROFILE" ] && [ ! -z "${ALIASMAP[$CURRENT_PROFILE]}" ] && loadProfile
 
 #do not run if no action specified
 if [ -z "$ACTION" ] && [ "$CURRENT_PROFILE" != "" ]; then
-	if [ "$(isScreen "${PROFILE[SCREEN_NAME]}")" == "" ]; then
-		coecho "$FC_LIGHT_CYAN$FC_BOLD" "Server is not running"
-	else
-		coecho "$FC_LIGHT_CYAN$FC_BOLD" "Server is running"
-	fi
+	showRunning
 fi
 
 eval "$ACTION"

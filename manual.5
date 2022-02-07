@@ -1,0 +1,133 @@
+./" this is the man page for your-awesm
+.TH your-awesm "%insertdatehere%" "V%version%" "your-awesm man page"
+
+.SH NAME
+your-awesm - YOUR AWEsome Starbound Manager
+
+.SH DESCRIPTION
+Allows you to manage multiple Starbound servers, each with their own unique modpack via a fiendly command line CLI interface
+
+.SH SYNOPSIS
+Basic usage: %commandname% [options] <command> [sub-command] [options]
+
+%commandname% works by having "profiles" and "selecting them".
+
+each profile is a separate instance of a starbound server with its own unique files, mods, configuration and storage folder.
+"Selecting" a profile will cause all commands ran to affect that server in particular if not specified otherwise.
+
+%commandname% config # for instance will cause the starbound server configuration from the "current profile"/"selected profile" to show up in nano.
+
+The creation switching and deletion of profiles is described below:
+
+%commandname% profile create main # creates a server profile named main
+%commandname% -s <profile name> # change current profile
+%commandname% profile delete # deletes the current profile
+
+.SH OPTIONS
+
+
+.IP \fBdemonize\fR
+Launch the server normally but keep the prompt until it's closed or crashed, this is useful for integration with systemd and not really useful for standalone setups
+
+.IP \fBstart\fR
+Starts up the server
+
+.IP \fBstop\fR
+Stops the server
+
+.IP \fBupdate\fR
+It takes in a steam workshop modpack url and installs it/updates.
+Updates are global but they only relink on the current profile therefore they are likely to break other servers if filenames change.
+It is recommended to run a relink on all your servers when updating one.
+Symlinks are used to link up mods unless --cp is specified
+
+.IP \fBunlink\fR
+Unlink removes all mods from the mods folder, does not delete them from steam
+
+.IP \fBrelink\fR
+Relink removes all mods from the mods folder and links them up again, does not delete them from steam
+symlinks are used to link up mods unless --cp is specified
+
+.IP \fBdump-profile\fR
+Dumps the raw profile configuration
+
+.IP \fBdumpdir\fR
+Shows the directory to which the stdout from ran commands is redirected
+
+.IP \fB\-s|--server|--profile|--server-profile|--profile-server\fR
+This option expects the profile name right after it. It will change the current profile and execute the next options that are given to %commandname%
+
+.IP \fB-S\fR
+Same as above but doesn't change the current profile
+
+.IP \fBprofile create\fR
+expects a profile name and 
+
+.IP \fB\fR
+
+.IP \fB\fR
+
+.IP \fB\fR
+
+.IP \fB\fR
+
+.IP \fB\fR
+
+.IP \fBlist\fR
+The list command doesn't do anything on its own, it expects an extra option to tell it what to list.
+Currently it only lists profiles, the complete command  being: \fB%commandname% list profiles\fR\
+
+.IP \fBreset-universe\fR
+Renames the universe folder, therefore the starbound server creates a new one, does not delete the old one.
+
+.IP \fBhook-log\fR
+Runs tail -f on the current starbound server logfile allowing you to see it in real time without attaching the screen the server is running on, so you can safely do ctrl+c
+
+.IP \fBget-last-log\fR
+Does what you expect.
+
+.IP \fBget-all-logs\fR
+As previous but instead you get all the logs into the current directory instead of just the last one
+
+.IP \fBconfig\fR
+Runs nano on the starbound server config
+
+.IP \fBsbdir\fR
+Shows you the starbound directory's absolute path
+
+.IP \fB--boring\fR
+When combined with other option it turns off color coding, so you can pipe the output of the script into a file without ending with stuff like "\e[33" in it
+
+.IP \fB--delete-workshop\fR
+When combined with the update option it deltes the workshop contents before performing the installation/update of the mods
+
+.IP \fB--start\fR
+When combined with the update command causes the server to start up right after it's been updated
+
+.IP \fB--stop\fR
+When combined with the update command causes the server to stop when mods are updated, this is recommended since it's not really a good idea to update mods on the fly
+
+.IP \fB--restart\fR
+Same as combining --stop and --start
+
+.IP \fB--dry-run\fR
+When combined with update it will do every step but won't actually run steamcmd to update the mods
+
+.IP \fB--cp\fR
+When combined with update or relink causes to make copies of the mods instead of symbolic links
+
+.IP \fB--mod\fR
+Expects a workshop content id right after it, allows you to add extra mods to a modpack
+
+
+.SH MOTTO
+
+    NEVER GO MANUAL, AUTOMATION IS NOT MANIA
+
+
+.SH AUTHOR
+
+        https://github.com/reiikz/
+
+
+
