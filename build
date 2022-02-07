@@ -26,7 +26,7 @@ sudo chown root:root your-awesm-$VERSION-all/usr/local/bin/star-server
 
 mkdir -p your-awesm-$VERSION-all/usr/local/lib/reiikz/your-awesm/templates/
 cp templates/template-unit-file.service your-awesm-$VERSION-all/usr/local/lib/reiikz/your-awesm/templates
-chmod 644 templates/template-unit-file.service your-awesm-$VERSION-all/usr/local/lib/reiikz/your-awesm/templates -R
+chmod 755 templates/template-unit-file.service your-awesm-$VERSION-all/usr/local/lib/reiikz/your-awesm/templates -R
 sudo chown root:root your-awesm-$VERSION-all/usr/local/lib/reiikz/ -R
 
 dpkg-deb -b your-awesm-$VERSION-all
