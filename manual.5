@@ -27,96 +27,171 @@ The creation switching and deletion of profiles is described below:
 
 
 .IP \fBdemonize\fR
+
 Launch the server normally but keep the prompt until it's closed or crashed, this is useful for integration with systemd and not really useful for standalone setups
 
 .IP \fBstart\fR
+
 Starts up the server
 
 .IP \fBstop\fR
+
 Stops the server
 
 .IP \fBupdate\fR
+
 It takes in a steam workshop modpack url and installs it/updates.
+
 Updates are global but they only relink on the current profile therefore they are likely to break other servers if filenames change.
+
 It is recommended to run a relink on all your servers when updating one.
-Symlinks are used to link up mods unless --cp is specified
+
+Symlinks are used to link up mods unless \fB\-\-cp\fR is specified
 
 .IP \fBunlink\fR
+
 Unlink removes all mods from the mods folder, does not delete them from steam
 
 .IP \fBrelink\fR
+
 Relink removes all mods from the mods folder and links them up again, does not delete them from steam
-symlinks are used to link up mods unless --cp is specified
+
+symlinks are used to link up mods unless \fB\-\-cp\fR is specified
 
 .IP \fBdump-profile\fR
+
 Dumps the raw profile configuration
 
 .IP \fBdumpdir\fR
+
 Shows the directory to which the stdout from ran commands is redirected
 
 .IP \fB\-s|--server|--profile|--server-profile|--profile-server\fR
+
 This option expects the profile name right after it. It will change the current profile and execute the next options that are given to %commandname%
 
 .IP \fB-S\fR
+
 Same as above but doesn't change the current profile
 
-.IP \fBprofile create\fR
-expects a profile name and 
+.IP \fBprofile\ create\fR
 
-.IP \fB\fR
+Creates a new server profile, expects a profile name right after it.
 
-.IP \fB\fR
+.IP \fBprofile\ delete\fR
 
-.IP \fB\fR
+Deletes the current server profile along with all of its files, storage and config.
 
-.IP \fB\fR
+.IP \fBconfig\fR
 
-.IP \fB\fR
+Runs nano on the starbound server config for the current server profile.
+
+.IP \fBprofile\ easy-access\fR
+
+Turns on and off easy access.
+
+Easy access creates a symbolic link to the starbound server of the current profile in the home directory.
+
+.IP \fBprofile\ handler\fR
+
+Shows the service handler for the current profile
+
+.IP \fBprofile\ handler\ set <handler>\fR
+
+Sets the service handler for the current profile.
+
+The only argument it takes can only be either systemd or your-awesm.
+
+Instructions for the administrative configuration will be given when switching to systemd.
+
+.IP \fBprofile\ service-name\ <service\ name>\fR
+
+The name that will be set to the starbound service in case of using systemd.
+
+This option should be set before running \fBprofile handler set\fR
+
+.IP \fBprofile\ screen-name\ <screen\ name>\fR
+
+The name for the screen starbound will be run on.
+
+Expects the name right after it.
+
+.IP \fBprofile\ current\fR
+
+Shows information about the current profile.
+
+.IP \fB\-\-version\fR
+
+Prints the program version along with information on how to report errors.
+
+.IP \fB-vv\fR
+
+If the installed script has been packaged properly this should show the branch and commit hash the script comes from.  
+
+.IP \fBstatus\fR
+
+Same as \fBprofile\ current\fR
 
 .IP \fBlist\fR
+
 The list command doesn't do anything on its own, it expects an extra option to tell it what to list.
+
 Currently it only lists profiles, the complete command  being: \fB%commandname% list profiles\fR\
 
 .IP \fBreset-universe\fR
+
 Renames the universe folder, therefore the starbound server creates a new one, does not delete the old one.
 
 .IP \fBhook-log\fR
+
 Runs tail -f on the current starbound server logfile allowing you to see it in real time without attaching the screen the server is running on, so you can safely do ctrl+c
 
 .IP \fBget-last-log\fR
+
 Does what you expect.
 
 .IP \fBget-all-logs\fR
+
 As previous but instead you get all the logs into the current directory instead of just the last one
 
-.IP \fBconfig\fR
-Runs nano on the starbound server config
-
 .IP \fBsbdir\fR
-Shows you the starbound directory's absolute path
+
+Shows you the starbound server directory's absolute path of the the current profile.
+
+.IP \fB--force\fR
+
+When \fB\-\-force\fR is used with any command confirmation will not be requested and instead the program will take action.
 
 .IP \fB--boring\fR
+
 When combined with other option it turns off color coding, so you can pipe the output of the script into a file without ending with stuff like "\e[33" in it
 
 .IP \fB--delete-workshop\fR
+
 When combined with the update option it deltes the workshop contents before performing the installation/update of the mods
 
 .IP \fB--start\fR
+
 When combined with the update command causes the server to start up right after it's been updated
 
 .IP \fB--stop\fR
+
 When combined with the update command causes the server to stop when mods are updated, this is recommended since it's not really a good idea to update mods on the fly
 
 .IP \fB--restart\fR
+
 Same as combining --stop and --start
 
 .IP \fB--dry-run\fR
+
 When combined with update it will do every step but won't actually run steamcmd to update the mods
 
 .IP \fB--cp\fR
+
 When combined with update or relink causes to make copies of the mods instead of symbolic links
 
 .IP \fB--mod\fR
+
 Expects a workshop content id right after it, allows you to add extra mods to a modpack
 
 

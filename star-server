@@ -1615,6 +1615,18 @@ function setProfileScreenName {
 	saveProfile
 }
 
+function showCurrentProfile {
+	loadProfile
+	coecho "$FC_BOLD$FC_LIGHT_GREEN" "$CURRENT_PROFILE"
+	coecho "$FC_BOLD$FC_LIGHT_GREEN" "	Starbound:	${PROFILE[SERVER_WORKER]}"
+	coecho "$FC_BOLD$FC_LIGHT_GREEN" "	Screen:		${PROFILE[SCREEN_NAME]}"
+	if isRunning; then
+		coecho "$FC_BOLD$FC_LIGHT_GREEN" "	Status:		$FC_CYAN""Running"
+	else
+		coecho "$FC_BOLD$FC_LIGHT_GREEN" "	Status:		$FC_RED""Stopped"
+	fi
+}
+
 function profile {
 	unset ACTION
 	declare -A definedSingularOptions
@@ -1659,8 +1671,7 @@ function profile {
 			;;
 
 			current)
-				coecho "$FC_BOLD$FC_GREEN" "$CURRENT_PROFILE"
-				exit 0
+				ACTION="showCurrentProfile"
 			;;
 
 			set)
@@ -1706,21 +1717,6 @@ function profile {
 
 			delete)
 				ACTION="rmProfile"
-			;;
-
-			--screen-name)
-				local opt="$1"
-				if [ ! -z "${PROFILE[SCREEN_NAME]}" ]; then
-					coecho "$FC_BOLD$FC_LIGHT_CYAN" "$opt$FC_LIGHT_YELLOW can only defined once"
-					exit 1
-				fi
-				shift
-				if [ "$1" != "" ] && [ "$#" -gt 0 ]; then
-					declareProfile
-					PROFILE[SCREEN_NAME]="$1"
-				else
-					coecho "$FC_BOLD$FC_LIGHT_YELLOW" "Expected screen name after $FC_LIGHT_CYAN$opt"
-				fi
 			;;
 
 			--force)
@@ -1774,7 +1770,7 @@ while [ $# -gt 0 ]; do
 
 		status)
 			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
-			ACTION="showRunning"
+			ACTION="showCurrentProfile"
 		;;
 
 		update)
