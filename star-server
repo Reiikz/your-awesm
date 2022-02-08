@@ -1060,7 +1060,7 @@ function start {
 	# #remove me after testing
 	# return 0
 	if [ -z "$INVOCATION_ID" ]; then
-		if [ "${PROFILE[SERVICE_HANDLER]}" == "systemctl" ]; then
+		if [ "${PROFILE[SERVICE_HANDLER]}" == "systemd" ]; then
 			eval "${PROFILE[START_COMMAND]}"
 			coecho "\e[32m" "Server Start"
 			exit 0
@@ -1087,7 +1087,7 @@ function demonize {
 	closeIfNotProfile
 	#call the start sequence
 	if [ -z "$INVOCATION_ID" ]; then
-		if [ "${PROFILE[SERVICE_HANDLER]}" == "systemctl" ]; then
+		if [ "${PROFILE[SERVICE_HANDLER]}" == "systemd" ]; then
 			eval "${PROFILE[START_COMMAND]}"
 		fi
 	else
@@ -1108,7 +1108,7 @@ function demonize {
 
 function stop {
 	if [ -z "$INVOCATION_ID" ]; then
-		if [ "${PROFILE[SERVICE_HANDLER]}" == "systemctl" ]; then
+		if [ "${PROFILE[SERVICE_HANDLER]}" == "systemd" ]; then
 			eval "${PROFILE[STOP_COMMAND]}"
 			coecho "\e[32m" "Server Stop"
 			exit 0
