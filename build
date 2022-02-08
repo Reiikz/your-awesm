@@ -10,7 +10,8 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
-rm -rf your-awesm-$VERSION-all
+rm -rf your-awesm-*-all
+rm -rf your-awesm-*-all.deb
 rm -f *.deb
 
 GIT_BRANCH="$(git branch -a | grep \* | sed "s/*//g" | sed -E "s/^\s+//g")"
