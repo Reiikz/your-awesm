@@ -17,7 +17,7 @@ Target system: Debian Stable, feel free to ask for compatibility updates.
 * Multi server support; the ability to manage multiple server profiles at once each with their own unique modpack
 * Auto generates unit files to set it up as a system service
 * logs to a file when doing certain tasks like updating
-* Standar manual page for star-server****
+* Standar manual page for star-server
 
 ### What is planned:
 * Profiling support; the ability to have multiple modpacks/map combinations for one server
