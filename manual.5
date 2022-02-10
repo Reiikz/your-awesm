@@ -38,6 +38,10 @@ Starts up the server
 
 Stops the server
 
+.IP \fBOSHA\fR
+
+Forcibly shuts down the server
+
 .IP \fBupdate\fR
 
 It takes in a steam workshop modpack url and installs it/updates.
@@ -65,6 +69,20 @@ Dumps the raw profile configuration
 .IP \fBdumpdir\fR
 
 Shows the directory to which the stdout from ran commands is redirected
+
+.IP \fBmodpack\fR
+
+\fBmodpack\fR is a subcommand that allows you to add multiple steam modpacks to a given profile, allowing you to swap between them and their respective universes saving you the hassle of configuring multiple servers or swtiching between universes.
+
+Modpacks are treated as a pair of modpack/universe combination, allowing you to keep multiple maps with the same server config, each modpack must have its own name for identification sake.
+
+\fBmodpack\fR recognizes two modpack types; \fBvanilla\fR and \fBWorkshop\fR the latter meaning the modpack is provided through a steam workshop link and the first meaning there is no modpack.
+
+When no modpacks have been added to a profile you can specify \fBupdate\ <workshop link>\fR but when modpacks are added it is assumed that those will be used instead and \fBupdate\fR will no longer require a link unless it's a "vanilla modpack"
+
+.IP \fBmodpack\ create\fR
+
+Expects modpack name right after it, creates a modpack/universe profile within the current server profile
 
 .IP \fB\-s|--server|--profile|--server-profile|--profile-server\fR
 

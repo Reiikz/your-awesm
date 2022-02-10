@@ -303,8 +303,7 @@ function closeIfNotProfile {
 }
 
 function killScreen {
-	[ $# -ne 1 ] && echo "bad usage of waitUntil" && exit 1
-	screen -X -S $(screen -ls | grep -oE "[0-9]+\.$1" | sed -e "s/\..*$//g") kill
+	screen -X -S "$(isScreen "$1")" kill
 }
 
 function sendCommand {
@@ -1318,19 +1317,22 @@ function rmProfile {
 		# declare -p ALIASMAP
 		
 		local dir="${PROFILE[SERVER_WORKER]}/assets"
-		if [ ! -z "$(file "$dir" | grep -o "symbolic link")" ]; then
+		#if [ ! -z "$(file "$dir" | grep -o "symbolic link")" ]; then
+		if [ -L "$dir" ]; then
 			[ -e "$dir" ] && rm "$dir"
 		else
 			[ -e "$dir" ] && rm -r "$dir"
 		fi
 		dir="${PROFILE[SERVER_WORKER]}/doc"
-		if [ ! -z "$(file "$dir" | grep -o "symbolic link")" ]; then
+		#if [ ! -z "$(file "$dir" | grep -o "symbolic link")" ]; then
+		if [ -L "$dir" ]; then
 			[ -e "$dir" ] && rm "$dir"
 		else
 			[ -e "$dir" ] && rm -r "$dir"
 		fi
 		dir="${PROFILE[SERVER_WORKER]}/tiled"
-		if [ ! -z "$(file "$dir" | grep -o "symbolic link")" ]; then
+		#if [ ! -z "$(file "$dir" | grep -o "symbolic link")" ]; then
+		if [ -L "$dir" ]; then
 			[ -e "$dir" ] && rm "$dir"
 		else
 			[ -e "$dir" ] && rm -r "$dir"
@@ -1348,32 +1350,36 @@ function rmProfile {
 	fi
 }
 
+function loadDefaultProfile {
+	[ -z "${PROFILE[ON_0_MODS]}" ] && PROFILE[ON_0_MODS]="skip"
+	[ -z "${PROFILE[TIMEOUT]}" ] && PROFILE[TIMEOUT]="30"
+	[ -z "${PROFILE[SLEEP]}" ] && PROFILE[SLEEP]="60"
+	[ -z "${PROFILE[SERVICE_NAME]}" ] && PROFILE[SERVICE_NAME]="$CURRENT_PROFILE"
+	[ -z "${PROFILE[RESTART_MODE]}" ] && PROFILE[RESTART_MODE]="always"
+	[ -z "${PROFILE[SCREEN_NAME]}" ] && PROFILE[SCREEN_NAME]="$CURRENT_PROFILE"
+	[ -z "${PROFILE[PROFILE]}" ] && PROFILE[PROFILE]="$CONFIG_DIR/$CURRENT_PROFILE"
+	[ -z "${PROFILE[PROFILE_DIR]}" ] && PROFILE[PROFILE_DIR]="$SERVER_WORKERS/$CURRENT_PROFILE"
+	[ -z "${PROFILE[SERVER_WORKER]}" ] && PROFILE[SERVER_WORKER]="$SERVER_WORKERS/$CURRENT_PROFILE/Starbound_Server"
+	[ -z "${PROFILE[EXECUTABLE_DIR]}" ] && PROFILE[EXECUTABLE_DIR]="$SERVER_WORKERS/$CURRENT_PROFILE/Starbound_Server/linux"
+	[ -z "${PROFILE[DUMP_FILES]}" ] && PROFILE[DUMP_FILES]="$SERVER_WORKERS/$CURRENT_PROFILE/DUMP"
+	[ -z "${PROFILE[LOGFILES]}" ] && PROFILE[LOGFILES]="$SERVER_WORKERS/$CURRENT_PROFILE/logs"
+	[ -z "${PROFILE[LOGPARSE]}" ] && PROFILE[LOGPARSE]="yes"
+	[ -z "${PROFILE[RUN_SCRIPT]}" ] && PROFILE[RUN_SCRIPT]="./starbound_server"
+	[ -z "${PROFILE[COPY]}" ] && PROFILE[COPY]="0"
+	[ -z "${PROFILE[EASY_ACCESS]}" ] && PROFILE[EASY_ACCESS]="yes"
+	[ -z "${PROFILE[SELF_LOGGING]}" ] && PROFILE[SELF_LOGGING]="yes"
+	[ -z "${PROFILE[LOG_BACKUP]}" ] && PROFILE[LOG_BACKUP]="yes"
+	[ -z "${PROFILE[SERVICE_HANDLER]}" ] && PROFILE[SERVICE_HANDLER]="your-awesm"
+}
+
 function createProfile {
 	if [ -z "$CURRENT_PROFILE" ]; then
 		coecho "$FC_BOLD$FC_LIGHT_YELLOW" "Profile name must be set with $FC_LIGHT_CYAN""-s <profile name> $FC_LIGHT_CYAN""or$FC_LIGHT_GREEN --name <profile name>"
 		return 1
 	fi
+	! isAssoc PROFILE && declare -Ag PROFILE
+	loadDefaultProfile
 	if findSteam; then
-		! isAssoc PROFILE && declare -Ag PROFILE
-		[ -z "${PROFILE[ON_0_MODS]}" ] && PROFILE[ON_0_MODS]="skip"
-		[ -z "${PROFILE[TIMEOUT]}" ] && PROFILE[TIMEOUT]="30"
-		[ -z "${PROFILE[SLEEP]}" ] && PROFILE[SLEEP]="60"
-		[ -z "${PROFILE[SERVICE_NAME]}" ] && PROFILE[SERVICE_NAME]="$CURRENT_PROFILE"
-		[ -z "${PROFILE[RESTART_MODE]}" ] && PROFILE[RESTART_MODE]="always"
-		[ -z "${PROFILE[SCREEN_NAME]}" ] && PROFILE[SCREEN_NAME]="$CURRENT_PROFILE"
-		[ -z "${PROFILE[PROFILE]}" ] && PROFILE[PROFILE]="$CONFIG_DIR/$CURRENT_PROFILE"
-		[ -z "${PROFILE[PROFILE_DIR]}" ] && PROFILE[PROFILE_DIR]="$SERVER_WORKERS/$CURRENT_PROFILE"
-		[ -z "${PROFILE[SERVER_WORKER]}" ] && PROFILE[SERVER_WORKER]="$SERVER_WORKERS/$CURRENT_PROFILE/Starbound_Server"
-		[ -z "${PROFILE[EXECUTABLE_DIR]}" ] && PROFILE[EXECUTABLE_DIR]="$SERVER_WORKERS/$CURRENT_PROFILE/Starbound_Server/linux"
-		[ -z "${PROFILE[DUMP_FILES]}" ] && PROFILE[DUMP_FILES]="$SERVER_WORKERS/$CURRENT_PROFILE/DUMP"
-		[ -z "${PROFILE[LOGFILES]}" ] && PROFILE[LOGFILES]="$SERVER_WORKERS/$CURRENT_PROFILE/logs"
-		[ -z "${PROFILE[LOGPARSE]}" ] && PROFILE[LOGPARSE]="yes"
-		[ -z "${PROFILE[RUN_SCRIPT]}" ] && PROFILE[RUN_SCRIPT]="./starbound_server"
-		[ -z "${PROFILE[COPY]}" ] && PROFILE[COPY]="0"
-		[ -z "${PROFILE[EASY_ACCESS]}" ] && PROFILE[EASY_ACCESS]="yes"
-		[ -z "${PROFILE[SELF_LOGGING]}" ] && PROFILE[SELF_LOGGING]="yes"
-		[ -z "${PROFILE[LOG_BACKUP]}" ] && PROFILE[LOG_BACKUP]="yes"
-		[ -z "${PROFILE[SERVICE_HANDLER]}" ] && PROFILE[SERVICE_HANDLER]="your-awesm"
 		reloadAliasMap
 		[ -z "${ALIASMAP[$CURRENT_PROFILE]}" ] && ALIASMAP[$CURRENT_PROFILE]="$CURRENT_PROFILE"
 		PROFILE[SCREEN_NAME]="$(heavilySanitize "${PROFILE[SCREEN_NAME]}")"
@@ -1737,6 +1743,45 @@ function profile {
 	eval "$ACTION"
 }
 
+function loadModpacks {
+	echo loadmodpacks
+}
+
+function saveModpacks {
+	echo savemodpacks
+}
+
+function createModpack {
+	echo create modpack
+}
+
+function modpack {
+	unset ACTION
+	closeIfNotProfile
+	if [ $# -eq 0 ]; then
+		if [ -z "${PROFILE[CURRENT_MODPACK]}" ]; then
+			coecho "$FC_BOLD$FC_GREEN" "No modpack has been set yet"
+		fi
+	fi
+
+	while [ $# -gt 0 ]; do
+
+		case $1 in
+
+			create)
+				closeIfActionDefined "$1"
+				ACTION="createModpack"
+			;;
+
+		esac
+
+
+		shift
+	done
+
+	eval "$ACTION"
+}
+
 function printCopyright {
 	coecho "$FC_BOLD$FC_LIGHT_GREEN" "YOUR AWEsome Starbound Manager - $FC_LIGHT_CYAN""your-awesm$FC_LIGHT_GREEN © $FC_LIGHT_PINK""Reiikz$FC_LIGHT_GREEN - $COPYRIGHT_YEAR"
 	coecho "$FC_BOLD" "$FC_LIGHT_CYAN$MYSELF$FC_LIGHT_GREEN command - v $FC_LIGHT_CYAN$VERSION$FC_LIGHT_GREEN - MIT LICENSED"
@@ -1749,32 +1794,42 @@ function printGitVersion {
 	coecho "$FC_BOLD$FC_LIGHT_GREEN" "YOUR AWEsome Starbound Manager - Packaged from: $FC_LIGHT_CYAN$BUILT_FROM"
 }
 
+function killServer {
+	closeIfNotProfile
+	coecho "$FC_BOLD$FC_YELLOW" "OSHA: Forcibly shutting down server"
+	isRunning && killScreen "${PROFILE[SCREEN_NAME]}"
+}
+
+function closeIfActionDefined {
+	[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+}
+
 while [ $# -gt 0 ]; do
 
 	case $1 in
 
 		demonize)
-			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			closeIfActionDefined "$1"
 			ACTION="demonize"
 		;;
 
 		start)
-			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			closeIfActionDefined "$1"
 			ACTION="start"
 		;;
 
 		stop)
-			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			closeIfActionDefined "$1"
 			ACTION="stop"
 		;;
 
 		status)
-			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			closeIfActionDefined "$1"
 			ACTION="showCurrentProfile"
 		;;
 
 		update)
-			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			closeIfActionDefined "$1"
 			shift
 			if [ "$1" != "" ] && [ "$#" -gt 0 ]; then
 				MODPACK="$1"
@@ -1785,12 +1840,12 @@ while [ $# -gt 0 ]; do
 		;;
 
 		unlink)
-			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			closeIfActionDefined "$1"
 			ACTION="unlink"
 		;;
 
 		relink)
-			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			closeIfActionDefined "$1"
 			shift
 			if [ "$1" != "" ] && [ "$#" -gt 0 ]; then
 				MODPACK="$1"
@@ -1801,43 +1856,57 @@ while [ $# -gt 0 ]; do
 		;;
 
 		reset-universe)
-			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			closeIfActionDefined "$1"
 			ACTION="reset_universe"
 		;;
 
 		hook-log)
-			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			closeIfActionDefined "$1"
 			ACTION="hook_log"
 		;;
 
 		get-last-log)
-			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			closeIfActionDefined "$1"
 			ACTION="get_last_log"
 		;;
 
 		get-all-logs)
-			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			closeIfActionDefined "$1"
 			ACTION="get_all_logs"
 		;;
 
 		config)
-			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			closeIfActionDefined "$1"
 			ACTION="config"
 		;;
 
 		sbdir)
-			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			closeIfActionDefined "$1"
 			ACTION="showStarboundDir"
 		;;
 
 		dumpdir)
-			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			closeIfActionDefined "$1"
 			ACTION="showDumpDir"
 		;;
 
 		dump-profile)
-			[ ! -z "$ACTION" ] && coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Ambiguous situation action is $ACTION but specified $1" && exit 1
+			closeIfActionDefined "$1"
 			ACTION="dumpProfile"
+		;;
+
+		OSHA)
+			closeIfActionDefined "$1"
+			ACTION="killServer"
+		;;
+
+		modpack)
+			closeIfActionDefined "$1"
+			ACTION="modpack"
+			while [ $# -gt 0 ]; do
+				shift
+				[ $# -gt 0 ] && ACTION="$ACTION \"$1\""
+			done
 		;;
 
 		--boring)
@@ -1923,6 +1992,7 @@ while [ $# -gt 0 ]; do
 		;;
 
 		profile)
+			closeIfActionDefined "$1"
 			ACTION="profile"
 			while [ $# -gt 0 ]; do
 				shift
@@ -1931,6 +2001,7 @@ while [ $# -gt 0 ]; do
 		;;
 
 		list)
+			closeIfActionDefined "$1"
 			ACTION="listThings"
 			while [ $# -gt 0 ]; do
 				shift
@@ -1948,10 +2019,12 @@ while [ $# -gt 0 ]; do
 		;;
 
 		--version|-v)
+			closeIfActionDefined "$1"
 			ACTION="printCopyright"
 		;;
 
 		--git-version|-vv)
+			closeIfActionDefined "$1"
 			ACTION="printGitVersion"
 		;;
 
@@ -1973,7 +2046,7 @@ done
 eval "$(loadVar ALIASMAP "$CONFIG_DIR")"
 [ ! -z "$CURRENT_PROFILE" ] && [ ! -z "${ALIASMAP[$CURRENT_PROFILE]}" ] && loadProfile
 
-#do not run if no action specified
+#run if no action specified
 if [ -z "$ACTION" ] && [ "$CURRENT_PROFILE" != "" ]; then
 	showRunning
 fi
