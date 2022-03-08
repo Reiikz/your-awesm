@@ -659,7 +659,7 @@ function linkMods {
 					continue
 				fi
 
-				for x in "$(find $origin -name "*.pak" -type f)"; do
+				for x in "$origin/"*; do
 					local af="$(basename "$x")"
 					filenumber=1
 					coecho "$FC_LIGHT_GREEN" "Linking Mod: '$name'"
