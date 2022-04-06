@@ -1,0 +1,53 @@
+#!/bin/bash
+
+VERSION="$1"
+
+COMMAND_NAME="star-server"
+
+
+if [ -z "$VERSION" ]; then
+    echo "first argument must be package version"
+    exit 1
+fi
+
+rm -rf your-awesm-*-all
+rm -rf your-awesm-*-all.deb
+rm -f *.deb
+
+GIT_BRANCH="$(git branch -a | grep \* | sed "s/*//g" | sed -E "s/^\s+//g")"
+COMMIT_HASH="$(git rev-parse --verify HEAD)"
+COMMIT_HASH="${COMMIT_HASH:0:7}"
+
+SCRIPT="$(cat star-server | sed -E "s/VERSION=\".*$/VERSION=\"$VERSION\"/g" | sed "s/BUILT_FROM=\".*$/BUILT_FROM=\"$GIT_BRANCH-$COMMIT_HASH\"/g")"
+
+mkdir -p your-awesm-$VERSION-all/usr/local/bin
+mkdir -p your-awesm-$VERSION-all/DEBIAN
+
+
+#metadata
+cat templates/control | sed "s/%version%/$VERSION/g" > your-awesm-$VERSION-all/DEBIAN/control
+
+#script
+echo "$SCRIPT" > your-awesm-$VERSION-all/usr/local/bin/$COMMAND_NAME
+chmod 755 your-awesm-$VERSION-all/usr/local/bin/$COMMAND_NAME
+sudo chown root:root your-awesm-$VERSION-all/usr/local/bin/$COMMAND_NAME
+
+
+#templates
+mkdir -p your-awesm-$VERSION-all/usr/local/lib/reiikz/your-awesm/templates/
+cp templates/template-unit-file.service your-awesm-$VERSION-all/usr/local/lib/reiikz/your-awesm/templates
+chmod 755 templates/template-unit-file.service your-awesm-$VERSION-all/usr/local/lib/reiikz/your-awesm/templates -R
+sudo chown root:root your-awesm-$VERSION-all/usr/local/lib/reiikz/ -R
+
+#manual
+mkdir -p your-awesm-$VERSION-all/usr/share/man/man5
+manual="$(sed "s/%version%/$VERSION/g" manual.5 | sed "s/%insertdatehere%/$(date "+%d\/%m\/%Y")/g" | sed "s/%commandname%/$COMMAND_NAME/g")"
+echo "$manual" > your-awesm-$VERSION-all/usr/share/man/man5/$COMMAND_NAME.5
+gzip your-awesm-$VERSION-all/usr/share/man/man5/$COMMAND_NAME.5
+chmod 755 your-awesm-$VERSION-all/usr/share/man/man5/ -R
+sudo chown root:root your-awesm-$VERSION-all/usr/share/man/man5/ -R
+
+dpkg-deb -b your-awesm-$VERSION-all
+sudo chown $(whoami):$(whoami) your-awesm-$VERSION-all -R
+
+

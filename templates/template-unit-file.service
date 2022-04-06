@@ -1,0 +1,14 @@
+[Unit]
+Description=%description%
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+ExecStart=%exec_start%
+ExecStop=%exec_stop%
+User=%username%
+Group=%username%
+Restart=%restart%
+
+
