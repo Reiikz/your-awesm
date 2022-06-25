@@ -87,31 +87,12 @@ declare -gA COOLMODS_REASON=( [1958993491]="the maker of $MYSELF is an 8 headed 
 
 UNIT_FILE_TEMPLATE="/usr/local/lib/reiikz/your-awesm/templates/template-unit-file.service"
 
-####### Ensure we're not running over an older setup using this script
-# function hfsejka8574sfhjhi {
-# 	if [ ! -f "/usr/local/lib/RZ/star-server/cfgu/runConfigurationUpdate" ]; then
-# 		echo "You are missing /usr/local/lib/RZ/star-server/cfgu/runConfigurationUpdate"
-# 		echo "Please visit https://github.com/Reiikz/your-awesm to solve this issue"
-# 		exit 1
-# 	fi
-# 	if [ ! -f "$CONFIG_DIR/PRERUN" ]; then
-# 		/usr/local/lib/RZ/star-server/cfgu/runConfigurationUpdate "${BASH_SOURCE[0]}" ?
-# 	# else
-# 		# //other version check
-# 	fi
-# }
-# if [ ! -f "$CONFIG_DIR/../VERSION" ]; then
-# 	echo $VERSION > "$CONFIG_DIR/../VERSION"
-# else
-# 	lv="$(cat "$CONFIG_DIR/../VERSION" | sed "s/\.//g")"
-# 	cv="$(sed "s/\.//g" <<< $VERSION)"
-# 	if [ $lv -gt $cv ]; then
-# 		echo "W: DOWNGRADE IS DANGEROUS RUNNING AN OLDER VERSION OF THIS SCRIPT ON A NEWER SETUP MIGHT CAUSE UNDEFINED BEHAVIOUR"
-# 	fi
-# 	if [ $lv -lt $cv ]; then
-# 		hfsejka8574sfhjhi
-# 	fi
-# fi
+#load up common functions from external file
+if ! source /usr/local/lib/your-awesm/common; then
+	echo -e "$FC_RED$FC_BOLD""Could not load main library"
+	exit 0;
+fi
+
 if [ -f "$CONFIG_DIR/PRERUN" ]; then
 	source "$CONFIG_DIR/PRERUN"
 fi

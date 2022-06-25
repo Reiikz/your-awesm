@@ -19,6 +19,8 @@ COMMIT_HASH="$(git rev-parse --verify HEAD)"
 COMMIT_HASH="${COMMIT_HASH:0:7}"
 
 SCRIPT="$(cat star-server | sed -E "s/VERSION=\".*$/VERSION=\"$VERSION\"/g" | sed "s/BUILT_FROM=\".*$/BUILT_FROM=\"$GIT_BRANCH-$COMMIT_HASH\"/g")"
+MAIN_LIBRARY="$(cat common | sed -E "s/VERSION=\".*$/VERSION=\"$VERSION\"/g" | sed "s/BUILT_FROM=\".*$/BUILT_FROM=\"$GIT_BRANCH-$COMMIT_HASH\"/g")"
+CLIENT_SCRIPT=""$(cat star-client | sed -E "s/VERSION=\".*$/VERSION=\"$VERSION\"/g" | sed "s/BUILT_FROM=\".*$/BUILT_FROM=\"$GIT_BRANCH-$COMMIT_HASH\"/g")""
 
 mkdir -p your-awesm-$VERSION-all/usr/local/bin
 mkdir -p your-awesm-$VERSION-all/DEBIAN
