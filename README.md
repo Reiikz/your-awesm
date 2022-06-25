@@ -8,6 +8,7 @@ Target system: Debian Stable, feel free to ask for compatibility updates.
 
 ### how to use it?
 
+try to read the manual instead, it's updated more often than the wiki and has virtually the same content ;)
 [check the wiki](https://github.com/Reiikz/your-awesm/wiki)
 
 ### What works:
@@ -20,6 +21,7 @@ Target system: Debian Stable, feel free to ask for compatibility updates.
 * Standar manual page for star-server
 
 ### What is planned:
+* Client support for all profiling features
 * Profiling support; the ability to have multiple modpacks/map combinations for one server
 * API that spits out the player list a json format
 * Automatic starbound log backup
