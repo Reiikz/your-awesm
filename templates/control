@@ -1,9 +1,9 @@
-Package: your-awesm
+Package: %packagename%
 Version: %version%
 Architecture: all
 Maintainer: Reiikz
-Depends: coreutils, findutils, wget, steamcmd, screen, sudo
+Depends: %deps%
 Homepage: https://github.com/Reiikz/your-awesm
 Recomends:
-Description: Allows you to manage multiple starbound servers with multiple modpacks
+Description: %description%
 Priority: optional

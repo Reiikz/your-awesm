@@ -3,7 +3,7 @@
 #
 # MIT License
 #
-# Copyright (c) 2021 Reiikz
+# Copyright (c) 2022 Reiikz
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -85,10 +85,13 @@ RECOMMEND_COOL_MODS="yes"
 declare -ga COOLMODS=( [0]="1958993491" )
 declare -gA COOLMODS_REASON=( [1958993491]="the maker of $MYSELF is an 8 headed dragon and this is an awesome dragon race, you should totally try it" )
 
-UNIT_FILE_TEMPLATE="/usr/local/lib/reiikz/your-awesm/templates/template-unit-file.service"
+INSTALL_PREFIX="/usr/local"
 
-#load up common functions from external file
-if ! source /usr/local/lib/your-awesm/common; then
+UNIT_FILE_TEMPLATE="$INSTALL_PREFIX/lib/reiikz/your-awesm/templates/template-unit-file.service"
+MAIN_LIBRARY="$INSTALL_PREFIX/lib/reiikz/your-awesm/common"
+
+#load up main library
+if ! source "$MAIN_LIBRARY"; then
 	echo -e "$FC_RED$FC_BOLD""Could not load main library"
 	exit 0;
 fi
@@ -723,7 +726,7 @@ function linkMods {
 					continue
 				fi
 				local err=""
-				for x in "$origin/"* do
+				for x in "$origin/"*; do
 					local af="$(basename "$x")"
 					filenumber=1
 					coecho "$FC_LIGHT_GREEN" "Linking Mod: '$name'"

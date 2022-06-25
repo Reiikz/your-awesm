@@ -2,21 +2,131 @@
 
 VERSION="$1"
 
-COMMAND_NAME="star-server"
+MAIN_LIBRARY_DEBIAN_DEPS=""
+CLIENT_DEBIAN_DEPS="findutils, wget, steamcmd, screen, sudo, your-awesm-common"
+SERVER_DEBIAN_DEPS="findutils, wget, steamcmd, screen, sudo, your-awesm-common"
 
+
+MAIN_LIBRARY_DESCRIPTION="Common functions for starc and stars (starbound mod manager main library)"
+SERVER_DESCRIPTION="Allows you to manage multiple starbound servers with multiple modpacks"
+CLIENT_DESCRIPTION="Allows you to manage multiple starbound clients with multiple modpacks"
+
+
+COMMAND_SERVER="stars"
+COMMAND_ALIAS="star-server"
+COMMAND_CLIENT="starc"
+
+
+PACKAGE_NAME="your-awesm"
+MAIN_LIBRARY_NAME="common"
+CLIENT_PACKAGE_NAME="client"
+SERVER_PACKAGE_NAME="server"
+ARCH="all"
+
+declare -g BUILDING=""
+
+GIT_BRANCH="$(git branch -a | grep \* | sed "s/*//g" | sed -E "s/^\s+//g")"
+COMMIT_HASH="$(git rev-parse --verify HEAD)"
+COMMIT_HASH="${COMMIT_HASH:0:7}"
+
+if [ ! -f ./user ] && [ ! -z "$SUDO_COMMAND" ] && [ "root" == "$(whoami)" ]; then
+    echo "run me as your local user first please X3"
+    exit 0
+fi
+
+if [ ! -f ./user ]; then
+    echo "$(whoami)" > user
+    echo "all done"
+    exit 0
+fi
+
+if [ -z "$SUDO_COMMAND" ] && [ "$(whoami)" != "root" ]; then
+    echo "giv root plz" 
+    exit 0
+fi
 
 if [ -z "$VERSION" ]; then
     echo "first argument must be package version"
     exit 1
 fi
 
+USERNAME="$(cat user)"
+
 rm -rf your-awesm-*-all
 rm -rf your-awesm-*-all.deb
 rm -f *.deb
 
-GIT_BRANCH="$(git branch -a | grep \* | sed "s/*//g" | sed -E "s/^\s+//g")"
-COMMIT_HASH="$(git rev-parse --verify HEAD)"
-COMMIT_HASH="${COMMIT_HASH:0:7}"
+#configurePackage version dependancies description package_name
+function configurePackage {
+
+    mkdir -p "$BUILDING-$VERSION-$ARCH/DEBIAN"
+    cat templates/control | sed "s/%version%/$1/g" | sed "s/%deps%/$2/g" | sed "s/%description%/$3/g" | sed "s/%packagename%/$4/g" > $BUILDING-$VERSION-$ARCH/DEBIAN/control
+    
+    return 0
+}
+
+
+# writeToExectuableFile sourcefile final_desitnation alias
+function writeToExectuableFile {
+
+    echo "file: $1"
+    echo "  dest: $2"
+
+    #get file contents
+    local file="$(cat "$1")"
+
+
+    #parse path
+    local dest="$BUILDING-$VERSION-$ARCH/${2:1:$(bc <<< "scale=1; ${#2}-1" | grep -oE "^[0-9]+" )}"
+    echo "  copying to: $dest"
+    mkdir -p "$(dirname $dest)"
+
+
+    file="$(echo "$file" | sed -E "s/VERSION=\".*$/VERSION=\"$VERSION\"/g" | sed "s/BUILT_FROM=\".*$/BUILT_FROM=\"$GIT_BRANCH-$COMMIT_HASH\"/g")"
+    echo "$file" > "$dest"
+    chmod 755 "$2"
+    local prev="$(pwd)"
+    cd "$(dirname $dest)"
+    [ ! -z "$3" ] && ln -s "./$(basename $dest)" "$3"
+    # if ! sudo chown root:root "$3" 2> /dev/null; then
+    #     echo -e "do we have root privileges?\nyou might wanna check XS (alias)"
+    # fi
+    # if ! sudo chown root:root "$dest" 2> /dev/null; then
+    #     echo -e "do we have root privileges?\nyou might wanna check XS"
+    # fi
+    cd "$prev"
+}
+
+function cleanup {
+    sudo chown $USERNAME:$USERNAME "$PACKAGE_NAME-$SERVER_PACKAGE_NAME"* -R
+}
+
+
+BUILDING="$PACKAGE_NAME-"$SERVER_PACKAGE_NAME
+rm -rf "$BUILDING-$VERSION-$ARCH"
+configurePackage "$VERSION" "$SERVER_DEBIAN_DEPS" "$SERVER_DESCRIPTION" "$BUILDING"
+writeToExectuableFile "star-server" "/usr/local/bin/star-server" "stars"
+dpkg-deb -b "$BUILDING-$VERSION-$ARCH"
+cleanup
+
+BUILDING="$PACKAGE_NAME-"$CLIENT_PACKAGE_NAME
+rm -rf "$BUILDING-$VERSION-$ARCH"
+configurePackage "$VERSION" "$CLIENT_DEBIAN_DEPS" "$CLIENT_DESCRIPTION" "$BUILDING"
+writeToExectuableFile "star-client" "/usr/local/bin/star-client" "starc"
+dpkg-deb -b "$BUILDING-$VERSION-$ARCH"
+cleanup
+
+BUILDING="$PACKAGE_NAME-"$MAIN_LIBRARY_NAME
+rm -rf "$BUILDING-$VERSION-$ARCH"
+configurePackage "$VERSION" "$MAIN_LIBRARY_DEBIAN_DEPS" "$MAIN_LIBRARY_DESCRIPTION" "$BUILDING"
+writeToExectuableFile "common" "/usr/local/lib/reiikz/your-awesm/common"
+dpkg-deb -b "$BUILDING-$VERSION-$ARCH"
+cleanup
+
+exit 0
+
+
+
 
 SCRIPT="$(cat star-server | sed -E "s/VERSION=\".*$/VERSION=\"$VERSION\"/g" | sed "s/BUILT_FROM=\".*$/BUILT_FROM=\"$GIT_BRANCH-$COMMIT_HASH\"/g")"
 MAIN_LIBRARY="$(cat common | sed -E "s/VERSION=\".*$/VERSION=\"$VERSION\"/g" | sed "s/BUILT_FROM=\".*$/BUILT_FROM=\"$GIT_BRANCH-$COMMIT_HASH\"/g")"
