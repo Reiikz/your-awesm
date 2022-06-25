@@ -8,7 +8,7 @@ Target system: Debian Stable, feel free to ask for compatibility updates.
 
 ### how to use it?
 
-try to read the manual instead, it's updated more often than the wiki and has virtually the same content ;)
+try to read the manual instead, it's updated more often than the wiki and has virtually the same content ;) or... 
 [check the wiki](https://github.com/Reiikz/your-awesm/wiki)
 
 ### What works:
