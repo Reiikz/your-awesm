@@ -17,12 +17,13 @@ Target system: Debian Stable, feel free to ask for compatibility updates.
 * Multi server support; the ability to manage multiple server profiles at once each with their own unique modpack
 * Auto generates unit files to set it up as a system service
 * logs to a file when doing certain tasks like updating
+* Standar manual page for star-server
 
 ### What is planned:
 * Profiling support; the ability to have multiple modpacks/map combinations for one server
-* Standar manual page for star-server
 * API that spits out the player list a json format
-* automatic starbound log backup
+* Automatic starbound log backup
+* Log processing for error detection and playercount reporting
 
 ### What's been deprecated:
 * the script will no longer support foreign users to manage other user's servers, stopping and starting will still be accessible through systemd, but support for other operations through sudo overrides will be dropped, in the future you'll have to explicitely specify to run the script as that particular user through the use of an external command like sudo.
