@@ -1,0 +1,168 @@
+#!/bin/bash
+
+#
+# MIT License
+#
+# Copyright (c) 2022 Reiikz
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+
+#######################################################################
+######			---------------------------------------------         #
+######							ATENTION                              #
+######			---------------------------------------------         #
+######		THIS IS JUST A LIBRARY CONTAINGING FUNCTIONS AND SHOULD   #
+######      NOT BE RAN MANUALLY 									  #
+######																  #
+#######################################################################
+
+# SOURCE_URL="https://github.com/Reiikz/your-awesm"
+# ERROR_REPORTING_TO="https://github.com/Reiikz/your-awesm/issues"
+
+# provides general purpose functionality
+
+BASH_QOL_COMMON_VERSION="0.0.1"
+
+if [ -z "${BASH_QOL_LIBRARIES[@]}" ]; then
+    declare -gA BASH_QOL_LIBRARIES=( [common]="$BASH_QOL_COMMON_VERSION" )
+else
+    BASH_QOL_LIBRARIES[common]="$BASH_QOL_COMMON_VERSION"
+fi
+
+
+#FORMATTING CODES
+FC_RESET="\e[0m"
+FC_BOLD="\e[1m"
+
+#FORMATTING
+FC_DEFAULT_COLOR="\e[39m"
+FC_RED="\e[31m"
+FC_GREEN="\e[32m"
+FC_YELLOW="\e[33m"
+FC_BLUE="\e[34m"
+FC_MAGENTA="\e[35m"
+FC_CYAN="\e[36m"
+FC_LIGHT_GRAY="\e[37m"
+FC_DARK_GRAY="\e[90m"
+FC_LIGHT_RED="\e[91m"
+FC_LIGHT_GREEN="\e[92m"
+FC_LIGHT_YELLOW="\e[93m"
+FC_LIGHT_BLUE="\e[94m"
+FC_LIGHT_MAGENTA="\e[95m"
+FC_LIGHT_CYAN="\e[96m"
+FC_WHITE="\e[97m"
+
+
+
+############## STRING FUNCTIONS
+
+function toLower {
+	echo "$1" | tr '[:upper:]' '[:lower:]'
+}
+
+
+function isYes {
+	if [ "yes" == "$(toLower "$1")" ]; then
+		return 0
+	fi
+	return 1
+}
+
+
+############## Misc Array handling
+
+function isArr {
+	if [ ! -z "$(grep -oE "^declare\s+-(a|A)" <<< "$(declare -p $1 2> /dev/null)")" ]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+function isAssoc {
+	if [ ! -z "$(grep -oE "^declare\s+-A" <<< "$(declare -p $1 2> /dev/null)")" ]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+function isInArray {
+    eval "$(echo "$1" | sed -E "s/^declare -/declare -g -/g" | sed -E "s/declare -g -a [A-Za-z0-9]+=/declare -g -a temporary=/g")"
+    for x in ${temporary[@]}; do
+        if [ "$2" == "$x" ]; then
+            unset temporary
+            return 0
+        fi
+    done
+    unset temporary
+    return 1
+}
+
+
+############## Variable persistence
+
+function saveVar {
+	[ "$1" != "" ] && declare -p $1 > /dev/null 2> /dev/null || return 1
+    [ "$2" == "" ] && return 2
+	local dir="$2"
+    mkdir -p "$dir"
+    [ ! -w "$2" ] && return 3
+	if [ "$(toLower $3)" != "no" ] && [ "$3" != "0" ] && [ "$(toLower $3)" != "false" ]; then
+    	declare -p $1 | sed -E "s/^declare -/declare -g -/g" > "$dir/$1.bvar" 2> /dev/null
+	else
+		declare -p $1 > "$dir/$1.bvar" 2> /dev/null
+	fi
+    chmod 700 "$dir/$1.bvar"
+}
+
+function loadVar {
+    unset "$1"
+    local dir="$2"
+    if ! source "$dir/$1.bvar" 2> /dev/null; then
+        return 1
+    else
+        declare -p $1 | sed -E "s/^declare -/declare -g -/g"
+        return 0
+    fi
+}
+
+################ Date handling
+
+
+function timeYMD {
+	date "+%Y-%m-%d"
+}
+
+function timestamp {
+	date "+%s"
+}
+
+function unixToFormat {
+	date "$1" -d @$2
+}
+
+function unixToYMD {
+	unixToFormat "+%Y-%m-%d" "$1"
+}
+
+function logTimeFormat {
+	echo -n "[$(date "+%H:%m:%S")]:"
+}

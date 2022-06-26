@@ -1,20 +1,24 @@
 #!/bin/bash
 
 VERSION="$1"
+BASH_QOL_VERSION="$2"
 
-MAIN_LIBRARY_DEBIAN_DEPS=""
-CLIENT_DEBIAN_DEPS="findutils, wget, steamcmd, screen, sudo, your-awesm-common"
-SERVER_DEBIAN_DEPS="findutils, wget, steamcmd, screen, sudo, your-awesm-common"
+MAIN_LIBRARY_DEBIAN_DEPS="rz-bash-qol"
+CLIENT_DEBIAN_DEPS="findutils, wget, steamcmd, sudo, your-awesm-common, rz-bash-qol"
+SERVER_DEBIAN_DEPS="findutils, wget, steamcmd, sudo, your-awesm-common, rz-bash-qol"
+BASH_QOL_DEBIAN_DEPS="screen"
 
 
 MAIN_LIBRARY_DESCRIPTION="Common functions for starc and stars (starbound mod manager main library)"
 SERVER_DESCRIPTION="Allows you to manage multiple starbound servers with multiple modpacks"
 CLIENT_DESCRIPTION="Allows you to manage multiple starbound clients with multiple modpacks"
+BASH_QOL_DESCRIPTION="Bash scripts providing quality of life functions and miscelanious utilities"
 
 
-COMMAND_SERVER="stars"
-COMMAND_ALIAS="star-server"
-COMMAND_CLIENT="starc"
+COMMAND_SERVER="star-server"
+COMMAND_SERVER_ALIAS="stars"
+COMMAND_CLIENT="star-client"
+COMMAND_CLIENT_ALIAS="starc"
 
 
 PACKAGE_NAME="your-awesm"
@@ -50,6 +54,11 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
+if [ -z "$BASH_QOL_VERSION" ]; then
+    echo "Next argument must be Bash Quality of Life Version"
+    exit 1
+fi
+
 USERNAME="$(cat user)"
 
 rm -rf your-awesm-*-all
@@ -78,41 +87,73 @@ function writeToExectuableFile {
 
     #parse path
     local dest="$BUILDING-$VERSION-$ARCH/${2:1:$(bc <<< "scale=1; ${#2}-1" | grep -oE "^[0-9]+" )}"
-    echo "  copying to: $dest"
+    echo "  package dest: $dest"
     mkdir -p "$(dirname $dest)"
 
 
     file="$(echo "$file" | sed -E "s/VERSION=\".*$/VERSION=\"$VERSION\"/g" | sed "s/BUILT_FROM=\".*$/BUILT_FROM=\"$GIT_BRANCH-$COMMIT_HASH\"/g")"
     echo "$file" > "$dest"
-    chmod 755 "$2"
+    chmod 755 "$dest"
     local prev="$(pwd)"
     cd "$(dirname $dest)"
     [ ! -z "$3" ] && ln -s "./$(basename $dest)" "$3"
-    # if ! sudo chown root:root "$3" 2> /dev/null; then
-    #     echo -e "do we have root privileges?\nyou might wanna check XS (alias)"
-    # fi
-    # if ! sudo chown root:root "$dest" 2> /dev/null; then
-    #     echo -e "do we have root privileges?\nyou might wanna check XS"
-    # fi
     cd "$prev"
 }
 
 function cleanup {
-    sudo chown $USERNAME:$USERNAME "$PACKAGE_NAME-$SERVER_PACKAGE_NAME"* -R
+    sudo chown $USERNAME:$USERNAME ./* -R
 }
+
+# putManual source destination version command_name
+function putManual {
+    echo "manual: $1"
+    echo "  dest: $2"
+    local dest="$BUILDING-$VERSION-$ARCH/${2:1:$(bc <<< "scale=1; ${#2}-1" | grep -oE "^[0-9]+" )}"
+    echo "  package dest: $dest"
+    mkdir -p "$(dirname "$dest")"
+    local file="$(sed "s/%version%/$3/g" "$1" | sed "s/%insertdatehere%/$(date "+%d\/%m\/%Y")/g" | sed "s/%commandname%/$4/g")"
+    echo "$file" > "$dest"
+    gzip "$dest"
+    return 0
+}
+
+# aliasFile target alias
+function aliasFile {
+    local target="$BUILDING-$VERSION-$ARCH/${1:1:$(bc <<< "scale=1; ${#1}-1" | grep -oE "^[0-9]+" )}"
+    local prev="$(pwd)"
+    cd "$(dirname $target)"
+    ln -s "./$(basename $target)" "$2"
+    cd "$prev"
+}
+
+# putTemplate source destination
+function putTemplate {
+    echo "template: $1"
+    echo "  dest: $2"
+    local dest="$BUILDING-$VERSION-$ARCH/${2:1:$(bc <<< "scale=1; ${#2}-1" | grep -oE "^[0-9]+" )}"
+    echo "  package dest: $dest"
+    mkdir -p "$(dirname "$dest")"
+    local file="$(cat "$1")"
+    echo "$file" > "$dest"
+    return 0
+}
+
 
 
 BUILDING="$PACKAGE_NAME-"$SERVER_PACKAGE_NAME
 rm -rf "$BUILDING-$VERSION-$ARCH"
 configurePackage "$VERSION" "$SERVER_DEBIAN_DEPS" "$SERVER_DESCRIPTION" "$BUILDING"
-writeToExectuableFile "star-server" "/usr/local/bin/star-server" "stars"
+writeToExectuableFile "star-server" "/usr/local/bin/$COMMAND_SERVER" "$COMMAND_SERVER_ALIAS"
+putManual "manual.5" "/usr/share/man/man5/$COMMAND_SERVER.5"
+aliasFile "/usr/share/man/man5/$COMMAND_SERVER.5.gz" "$COMMAND_SERVER_ALIAS.5.gz"
+putTemplate "templates/template-unit-file.service" "/usr/local/lib/reiikz/your-awesm/templates/template-unit-file.service"
 dpkg-deb -b "$BUILDING-$VERSION-$ARCH"
 cleanup
 
 BUILDING="$PACKAGE_NAME-"$CLIENT_PACKAGE_NAME
 rm -rf "$BUILDING-$VERSION-$ARCH"
 configurePackage "$VERSION" "$CLIENT_DEBIAN_DEPS" "$CLIENT_DESCRIPTION" "$BUILDING"
-writeToExectuableFile "star-client" "/usr/local/bin/star-client" "starc"
+writeToExectuableFile "star-client" "/usr/local/bin/star-client" "$COMMAND_CLIENT_ALIAS"
 dpkg-deb -b "$BUILDING-$VERSION-$ARCH"
 cleanup
 
@@ -123,43 +164,13 @@ writeToExectuableFile "common" "/usr/local/lib/reiikz/your-awesm/common"
 dpkg-deb -b "$BUILDING-$VERSION-$ARCH"
 cleanup
 
-exit 0
+BUILDING="rz-bash-qol"
+VERSION="$BASH_QOL_VERSION"
+rm -rf "$BUILDING-$VERSION-$ARCH"
+configurePackage "$VERSION" "$BASH_QOL_DEBIAN_DEPS" "$BASH_QOL_DESCRIPTION" "$BUILDING"
+writeToExectuableFile "BashQoL/common" "/usr/local/lib/reiikz/bash-qol/common"
+dpkg-deb -b "$BUILDING-$VERSION-$ARCH"
+cleanup
 
-
-
-
-SCRIPT="$(cat star-server | sed -E "s/VERSION=\".*$/VERSION=\"$VERSION\"/g" | sed "s/BUILT_FROM=\".*$/BUILT_FROM=\"$GIT_BRANCH-$COMMIT_HASH\"/g")"
-MAIN_LIBRARY="$(cat common | sed -E "s/VERSION=\".*$/VERSION=\"$VERSION\"/g" | sed "s/BUILT_FROM=\".*$/BUILT_FROM=\"$GIT_BRANCH-$COMMIT_HASH\"/g")"
-CLIENT_SCRIPT=""$(cat star-client | sed -E "s/VERSION=\".*$/VERSION=\"$VERSION\"/g" | sed "s/BUILT_FROM=\".*$/BUILT_FROM=\"$GIT_BRANCH-$COMMIT_HASH\"/g")""
-
-mkdir -p your-awesm-$VERSION-all/usr/local/bin
-mkdir -p your-awesm-$VERSION-all/DEBIAN
-
-
-#metadata
-cat templates/control | sed "s/%version%/$VERSION/g" > your-awesm-$VERSION-all/DEBIAN/control
-
-#script
-echo "$SCRIPT" > your-awesm-$VERSION-all/usr/local/bin/$COMMAND_NAME
-chmod 755 your-awesm-$VERSION-all/usr/local/bin/$COMMAND_NAME
-sudo chown root:root your-awesm-$VERSION-all/usr/local/bin/$COMMAND_NAME
-
-
-#templates
-mkdir -p your-awesm-$VERSION-all/usr/local/lib/reiikz/your-awesm/templates/
-cp templates/template-unit-file.service your-awesm-$VERSION-all/usr/local/lib/reiikz/your-awesm/templates
-chmod 755 templates/template-unit-file.service your-awesm-$VERSION-all/usr/local/lib/reiikz/your-awesm/templates -R
-sudo chown root:root your-awesm-$VERSION-all/usr/local/lib/reiikz/ -R
-
-#manual
-mkdir -p your-awesm-$VERSION-all/usr/share/man/man5
-manual="$(sed "s/%version%/$VERSION/g" manual.5 | sed "s/%insertdatehere%/$(date "+%d\/%m\/%Y")/g" | sed "s/%commandname%/$COMMAND_NAME/g")"
-echo "$manual" > your-awesm-$VERSION-all/usr/share/man/man5/$COMMAND_NAME.5
-gzip your-awesm-$VERSION-all/usr/share/man/man5/$COMMAND_NAME.5
-chmod 755 your-awesm-$VERSION-all/usr/share/man/man5/ -R
-sudo chown root:root your-awesm-$VERSION-all/usr/share/man/man5/ -R
-
-dpkg-deb -b your-awesm-$VERSION-all
-sudo chown $(whoami):$(whoami) your-awesm-$VERSION-all -R
 
 

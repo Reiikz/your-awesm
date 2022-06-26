@@ -1,4 +1,155 @@
 #!/bin/bash
 
+#
+# MIT License
+#
+# Copyright (c) 2022 Reiikz
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
 
+#######################################################################
+######			---------------------------------------------         #
+######							ATENTION                              #
+######			---------------------------------------------         #
+######		THIS IS JUST A LIBRARY CONTAINGING FUNCTIONS AND SHOULD   #
+######      NOT BE RAN MANUALLY 									  #
+######																  #
+#######################################################################
 
+# SOURCE_URL="https://github.com/Reiikz/your-awesm"
+# ERROR_REPORTING_TO="https://github.com/Reiikz/your-awesm/issues"
+
+function findSteam {
+	if [ -d "$USER_HOME/.steam/steam/steamapps" ]; then
+		declare -g -- STEAM="$USER_HOME/.steam/steam/steamapps"
+		return 0
+	fi
+
+	if [ -d "$USER_HOME/.steam/steam/SteamApps" ]; then
+		declare -g -- STEAM="$USER_HOME/.steam/steam/SteamApps"
+		return 0
+	fi
+
+	if [ -d "$USER_HOME/.steam/debian-installation/steamapps" ]; then
+		declare -g -- STEAM="$USER_HOME/.steam/debian-installation/steamapps"
+		return 0
+	fi
+
+	if [ -d "$USER_HOME/Steam/steamapps" ]; then
+		declare -g -- STEAM="$USER_HOME/Steam/steamapps"
+		return 0
+	fi
+	
+	coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Steam folder not found running 'steamcmd \"+quit\"'"
+	mkdir -p ${PROFILE[DUMP_FILES]}
+
+	mkdir -p ${PROFILE[DUMP_FILES]}
+	/usr/games/steamcmd "+quit" 2>&1 > ${PROFILE[DUMP_FILES]}/latestSteamCMDdump.stdout
+
+	if [ -d "$USER_HOME/Steam/steamapps" ]; then
+		declare -g -- STEAM="$USER_HOME/Steam/steamapps"
+		return 0
+	fi
+
+	if [ -d "$USER_HOME/.steam/steam/steamapps" ]; then
+		declare -g -- STEAM="$USER_HOME/.steam/steam/steamapps"
+		return 0
+	fi
+
+	if [ -d "$USER_HOME/.steam/steam/SteamApps" ]; then
+		declare -g -- STEAM="$USER_HOME/.steam/steam/SteamApps"
+		return 0
+	fi
+
+	if [ -d "$USER_HOME/.steam/debian-installation/steamapps" ]; then
+		declare -g -- STEAM="$USER_HOME/.steam/debian-installation/steamapps"
+		return 0
+	fi
+
+	coecho "$FC_LIGHT_RED$FC_BOLD" "OOPS Steam could not be found"
+	exit 1
+}
+
+function getModName {
+	local id="$1"
+	if [ -f "$CACHE_DIR/modnames/$id.name" ]; then
+		local c=0
+		while [ -z "$(cat $CACHE_DIR/modnames/$id.name)" ]; do
+			mkdir -p $CACHE_DIR/modnames
+			echo "$(wget "https://steamcommunity.com/sharedfiles/filedetails/?id=$id" -O - 2> /dev/null | grep -oP "(?<=<div class\=(\"|\')workshopItemTitle(\"|\')>)(.*)(?=<\/div>)")" > $CACHE_DIR/modnames/$id.name
+			c=$(($c+1))
+			if [ $c -gt 5 ]; then
+				break
+			fi
+		done
+		echo "$(cat $CACHE_DIR/modnames/$id.name)"
+	else
+		mkdir -p $CACHE_DIR/modnames
+		local name="$(wget "https://steamcommunity.com/sharedfiles/filedetails/?id=$id" -O - 2> /dev/null | grep -oP "(?<=<div class\=(\"|\')workshopItemTitle(\"|\')>)(.*)(?=<\/div>)")"
+		echo "$name" > $CACHE_DIR/modnames/$id.name
+		echo "$name"
+	fi
+
+}
+
+function parseModpack {
+	if [ -z "$(grep -oE "^(http|https)://steamcommunity.com/sharedfiles/filedetails/\?id=[0-9]+" <<< $1)" ]; then
+		coecho "$FC_LIGHT_RED$FC_BOLD" "$1: is not a valid workshop link"
+		exit 1
+	fi
+	rm -f /tmp/$MY_UID.workshop.html
+	wget $1 -O /tmp/$MY_UID.workshop.html 2> /dev/null
+	PARSED_MODPACK[RAW]="$(cat /tmp/$MY_UID.workshop.html)"
+	PARSED_MODPACK[NAME]="$(echo "${PARSED_MODPACK[RAW]}" | grep -oE "<div\s+class=\"workshopItemTitle\">.+</div>" | head -n 1 | sed -E "s/(<div\s+class=\"workshopItemTitle\">|<\/div>)//g")"
+	local items="$(echo "${PARSED_MODPACK[RAW]}" | tr -d \\n | grep -oE "<div\s+class=(\"|\')collectionItemDetails(\"|\')>\s*<a\s*href=(\"|\')http(s)*\:\/\/steamcommunity\.com\/sharedfiles\/filedetails\/\?id=[0-9]+(\"|\')\s*>")"
+	[ "$items" == "" ] && return 1
+	local c=0
+	while read -r line; do
+		local link="$(grep -oE "http(s)*\:\/\/steamcommunity\.com\/sharedfiles\/filedetails\/\?id=[0-9]+" <<< $line)"
+		[ "$link" == "" ] && continue
+		local id="$(grep -oE "id=[0-9]+" <<< $link | grep -oE "[0-9]+")"
+		PARSED_MODPACK["$id"~link]="$link"
+		PARSED_MODPACK[$c~id]="$id"
+		PARSED_MODPACK[$c~link]="$link"
+
+		if [ -f $CACHE_DIR/modnames/$id.name ]; then
+			PARSED_MODPACK[$c~name]="$(cat $CACHE_DIR/modnames/$id.name)"
+			PARSED_MODPACK[$id~name]="$(cat $CACHE_DIR/modnames/$id.name)"
+		else
+			mkdir -p $CACHE_DIR/modnames
+			local name="$(wget "$link" -O - 2> /dev/null | grep -oP "(?<=<div class\=(\"|\')workshopItemTitle(\"|\')>)(.*)(?=<\/div>)")"
+			echo "$name" > $CACHE_DIR/modnames/$id.name
+			PARSED_MODPACK[$c~name]="$name"
+			PARSED_MODPACK[$id~name]="$name"
+		fi
+		c=$(($c+1))
+		coecho "$FC_CYAN" "Found Content: ${PARSED_MODPACK[$id~name]} ($id)"
+
+	done <<< $items
+	if [ $c -eq 0 ]; then
+		PARSED_MODPACK[~modCount]="$c"
+		return 2
+	fi
+	PARSED_MODPACK[~lastItem]="$(($c-1))"
+	PARSED_MODPACK[~modCount]="$c"
+	coecho "$FC_LIGHT_GREEN$FC_BOLD" "Parsed modpack '${PARSED_MODPACK[NAME]}', $c workshop items found"
+	cleanup
+	return 0
+}

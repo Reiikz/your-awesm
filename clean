@@ -1,0 +1,3 @@
+#!/bin/bash
+
+rm -rf your-awesm* rz-bash-qol*
