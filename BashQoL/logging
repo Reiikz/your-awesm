@@ -1,0 +1,134 @@
+#!/bin/bash
+
+#
+# MIT License
+#
+# Copyright (c) 2022 Reiikz
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+
+#######################################################################
+######			---------------------------------------------         #
+######							ATENTION                              #
+######			---------------------------------------------         #
+######		THIS IS JUST A LIBRARY CONTAINGING FUNCTIONS AND SHOULD   #
+######      NOT BE RAN MANUALLY 									  #
+######																  #
+#######################################################################
+
+# SOURCE_URL="https://github.com/Reiikz/your-awesm"
+# ERROR_REPORTING_TO="https://github.com/Reiikz/your-awesm/issues"
+
+BASH_QOL_LOGGING_VERSION="0.0.1"
+
+if [ -z "${BASH_QOL_LIBRARIES[@]}" ]; then
+    declare -gA BASH_QOL_LIBRARIES=( [logging]="$BASH_QOL_LOGGING_VERSION" )
+else
+    BASH_QOL_LIBRARIES[logging]="$BASH_QOL_LOGGING_VERSION"
+fi
+
+if ! isQoL "common" 2> /dev/null; then
+    exit 200
+fi
+
+declare -A LOGGING
+
+
+#usage moveOldLog directory target destination
+function moveOldLog {
+
+    local dir="$1"
+    local target="$2"
+    local destination="$3"
+
+    eval "$(loadVar LOGTIME "$dir")"
+
+    if [ -z "$LOGTIME" ]; then
+		declare -g -- LOGTIME="$(timestamp)"
+		saveVar LOGTIME "$dir"
+	fi
+
+    if [ -z "${LOGGING[checked]}" ]; then
+        LOGGING[checked]="no"
+    fi
+
+    if [ $(($LOGTIME+86400)) -ge $(timestamp) ] && readbool "${LOGGING[checked]}"; then
+        if [ -e "$target" ]; then
+			mkdir -p "$destination"
+			mv "$target" "$destination/$(unixToYMD $LOGTIME)___$(timeYMD).log"
+		fi
+		
+		LOGTIME="$(timestamp)"
+		saveVar LOGTIME "$dir"
+        LOGGING[checked]=yes
+    fi
+
+}
+
+function log {
+    [ -z "${LOGGING[dir]}" ] && throwEx "qol_undefined" "LOGGING[dir]"
+    local service="${LOGGING[service_indicator_char]}"
+    local nonservice="${LOGGING[user_indicator_char]}"
+    [ -z "$service" ] && service="[-]"
+    local char="[*]"
+    if isSystemd; then
+        char="$service"
+    fi
+    
+    local dir="${LOGGING[dir]}"
+    local logfile="$dir/latest.log"
+    if ! readbool "${LOGGING[checked]}"; then
+        moveOldLog
+    fi
+
+    
+
+    mkdir -p $dir
+
+    local message=""
+    while [ $# -gt 0 ]; do
+        if [ -z "$message" ]; then
+            message="$1"
+        else
+            message="$message $1"
+        fi
+        shift
+    done
+
+    echo "[$$]-$char-$(logTimeFormat)$message" >> $logfile
+
+
+
+    return 0
+}
+
+function colog {
+	local formatting=$1
+	shift
+	local message=""
+	while [ $# -gt 0 ]; do
+		[ "$message" == "" ] && message="$1" || message="$message $1"
+		shift
+	done
+    log "$(sed -E "s/\\\e\[[0-9]{1,2}(m)//g" <<< "$message")"
+    coecho "$message"
+}
+
+

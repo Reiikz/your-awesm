@@ -46,6 +46,7 @@ else
     BASH_QOL_LIBRARIES[common]="$BASH_QOL_COMMON_VERSION"
 fi
 
+################# LIBRARY
 
 #FORMATTING CODES
 FC_RESET="\e[0m"
@@ -69,9 +70,188 @@ FC_LIGHT_MAGENTA="\e[95m"
 FC_LIGHT_CYAN="\e[96m"
 FC_WHITE="\e[97m"
 
+############## find the rest of the library
 
+declare -gA BASH_QOL_FILES
+function findAllOfTheQoLLibrary {
+	local path=""
+	[ $# -eq 0 ] && path="$(realpath ${BASH_SOURCE[0]})" || path="$1"
+	for x in "$(dirname $path)"/*; do
+		if [ -d "$x" ]; then
+			findAllOfTheQoLLibrary "$(realpath -P $x)"
+		fi
+		if [ -x "$x" ]; then
+			BASH_QOL_FILES[$(basename "$x")]="$(realpath -P $x)"
+		fi
+	done
+}
+findAllOfTheQoLLibrary
+
+declare -gA QoL_ERRORS
+QoL_ERRORS[upper_error_limit]="100"
+
+############## QoL Library errors!
+function registerQoLCommonExceptions {
+	local s="$FC_BOLD$FC_LIGHT_RED""QoL Error: $FC_RED"
+	registerQoLException "qol_undefined" "$s""undefined variable $FC_LIGHT_CYAN%subject%"
+	registerQoLException "qol_called_internal_ex" "$s""A program tried to call an internal library exception"
+	registerQoLException "qol_duplicate_ex" "$s""Duplicate exception $FC_LIGHT_CYAN%subject%"
+	registerQoLException "qol_tried_registering_internal_ex" "$s""A program tried registering an internal library exception"
+}
+
+function registerCommonExceptions {
+	local s="$FC_BOLD"
+	registerException "undefined" "$s$FC_LIGHT_CYAN%subject%$FC_RED is undefined"
+	registerException "nan"	"$s$FC_LIGHT_CYAN""%subject%$FC_RED is not a number"
+}
+
+############## echoing
+
+function coecho {
+	local formatting=""
+	local message=""
+
+	if [ $# -ne 1 ]; then
+		formatting="$1"
+		shift
+	fi
+	while [ $# -gt 0 ]; do
+		[ "$message" == "" ] && message="$1" || message="$message $1"
+		shift
+	done
+	echo -e "$formatting$message$FC_RESET"
+}
+
+function isException {
+	for x in ${!QoL_ERRORS[@]}; do
+		if [ "$x" == "$1" ]; then
+			return 0
+		fi
+	done
+	return 1
+}
+
+############## "Exception" throwing
+
+#usage registerException exception_id exception_description
+function registerException {
+	if isException "$1"; then
+		throwEx "qol_duplicate_ex" "$1"
+	fi
+	[ -z "${QoL_ERRORS[program_exceptions]}" ] && QoL_ERRORS[program_exceptions]=${QoL_ERRORS[upper_error_limit]}
+	
+	QoL_ERRORS[$1~]="$2"
+	QoL_ERRORS[$1]=$((${QoL_ERRORS[program_exceptions]}))
+	QoL_ERRORS[program_exceptions]=$((1+${QoL_ERRORS[program_exceptions]}))
+}
+
+#usage registerQoLException exception_id exception_description
+function registerQoLException {
+	if isException "$1"; then
+		throwEx "qol_duplicate_ex" "$1"
+	fi
+	local requestedFrom="$(realpath -P $(caller | cut -d' ' -f2))"
+	for x in ${BASH_QOL_FILES[@]}; do
+		if [ "$x" == "$requestedFrom" ]; then
+			[ -z "${QoL_ERRORS[QoL_exceptions]}" ] && QoL_ERRORS[QoL_exceptions]=1
+			QoL_ERRORS[$1]=${QoL_ERRORS[QoL_exceptions]}
+			QoL_ERRORS[QoL_exceptions]=$((${QoL_ERRORS[QoL_exceptions]}+1))
+			QoL_ERRORS[$1~]="$2"
+			return 0
+		fi
+	done
+	throwEx "qol_tried_registering_internal_ex"
+	return 1
+}
+
+function getExDes {
+	if [ ! -z "${QoL_ERRORS[$1]}" ]; then
+		echo ${QoL_ERRORS[$1~]}
+	else
+		coecho "$FC_YELLOW$FC_BOLD" "QoL WARNING:  Could not find Ex description: $FC_LIGHT_CYAN$1"
+	fi
+}
+
+function getExCode {
+	if [ ! -z "${QoL_ERRORS[$1]}" ]; then
+		echo "${QoL_ERRORS[$1]}"
+	else
+		coecho "$FC_YELLOW$FC_BOLD" "WARNING: Could not find Ex code: $FC_LIGHT_CYAN$1"
+	fi
+}
+
+function getExId {
+	getArrayKeyByValue "QoL_ERRORS" "$1"
+}
+
+function printStackTrace {
+	local stackCount=1
+	coecho "$FC_BOLD$FC_CYAN" "Stack trace:"
+	while [ ! -z "$(caller $stackCount)" ]; do
+		coecho "$FC_BOLD$FC_LIGHT_CYAN" "	$(caller $stackCount)"
+		stackCount=$(($stackCount+1))
+	done
+}
+
+function throwEx {
+	local requestedFrom="$(realpath -P $(caller | cut -d' ' -f2))"
+	local calledFromMe="no"
+	for x in ${BASH_QOL_FILES[@]}; do
+		if [ "$x" == "$requestedFrom" ]; then
+			calledFromMe="yes"
+		fi
+	done
+	if [ ${QoL_ERRORS[$1]} -lt ${QoL_ERRORS[upper_error_limit]} ] && ! readbool "$calledFromMe"; then
+		throwEx "qol_called_internal_ex"
+		return 2
+	fi
+	local mess="$(getExDes $1)"
+	mess="$(sed s/%subject%/$2/g <<< $mess)"
+	coecho "$mess"
+	printStackTrace
+	exit ${QoL_ERRORS[$1]}
+}
+
+############## Self checking
+
+function isQoL {
+	if [ -z "${BASH_QOL_LIBRARIES[$1]}" ]; then
+		echo -e "$FC_RED$FC_BOLD""B.QoL Error: Could not load library $1""$FC_RESET"
+		return 200
+	fi
+}
+
+function getMasterUniqueId {
+    echo $$.${BASH_SOURCE[$((${#BASH_SOURCE[@]}-1))]}
+}
+
+function reportMyself {
+	echo "$$" > /tmp/$(getMasterUniqueId).pid
+}
+
+function fullCleanup {
+	rm -rf /tmp/$(getMasterUniqueId).pid
+}
 
 ############## STRING FUNCTIONS
+
+function readbool {
+	if [ -z "$1" ]; then
+		return 2
+	fi
+	if [ "$1" != "0" ] && [ "$(toLower $1)" != "false" ] && [ "$(toLower $1)" != "no" ]; then
+		return 0
+	else
+		return 1
+	fi
+}
+
+function strStartsWith {
+    if [ ! -z "$(grep -oE "^($2)" <<< $1)" ]; then
+        return 0
+    fi
+    return 1
+}
 
 function toLower {
 	echo "$1" | tr '[:upper:]' '[:lower:]'
@@ -87,6 +267,22 @@ function isYes {
 
 
 ############## Misc Array handling
+
+function getArrayKeyByValue {
+	local origArray="$(declare -p $1)"
+	local type="$(grep -oE "declare -(a|A)" <<< "$origArray" | grep -oE "(a|A)$")"
+	data="$(sed -E "s/^declare\s+-(a|A){1}\s+[A-Za-z_0-9]+=//g" <<< "$origArray")"
+	declare -$type array="$data"
+	local needle="$2"
+
+	for x in ${!array[@]}; do
+		if [ "${array[$x]}" == "$needle" ]; then
+			echo "$x"
+			return 0
+		fi
+	done
+	return 1
+}
 
 function isArr {
 	if [ ! -z "$(grep -oE "^declare\s+-(a|A)" <<< "$(declare -p $1 2> /dev/null)")" ]; then
@@ -166,3 +362,17 @@ function unixToYMD {
 function logTimeFormat {
 	echo -n "[$(date "+%H:%m:%S")]:"
 }
+
+################# Context handleing
+
+function isSystemd {
+	if [ ! -z "$INVOCATION_ID" ]; then
+		# echo "$INVOCATION_ID"
+		return 0
+	fi
+	return 1
+}
+
+
+ registerQoLCommonExceptions
+ registerCommonExceptions

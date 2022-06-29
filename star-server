@@ -49,7 +49,6 @@ APPID=211820
 
 # ~~~~~~~~~~~~~~~~~~~~~~~ SCRIPT STARTS HERE
 
-MY_UID="your-awesm.$(basename ${BASH_SOURCE[0]}).$$"
 MYSELF="$(basename ${BASH_SOURCE[0]})"
 MY_SOURCE="${BASH_SOURCE[0]}"
 USER_HOME="$(getent passwd $(whoami) | cut -d':' -f6)"
@@ -97,6 +96,9 @@ fi
 if [ -f "$CONFIG_DIR/PRERUN" ]; then
 	source "$CONFIG_DIR/PRERUN"
 fi
+
+
+MY_UID="$(getMasterUniqueId)"
 
 source $USER_HOME/.bashrc 2>/dev/null
 
@@ -146,23 +148,6 @@ function log {
 			! isYes "$LOGCHECKED" && makeSureLogIsNotTooOld "$logdir" "$logfile" "$oldlogs"
 			echo "$(logTimeFormat)$message" >> $logfile
 		fi
-	fi
-}
-
-function coecho {
-	local formatting=$1
-	shift
-	local message=""
-	while [ $# -gt 0 ]; do
-		[ "$message" == "" ] && message="$1" || message="$message $1"
-		shift
-	done
-	if [ "$COLORFUL" == "1" ]; then
-		echo -e "$formatting$message$FC_RESET"
-		log "$(sed -E "s/\\\e\[[0-9]{1,2}(m)//g" <<< "$message")"
-	else
-		echo "$message" | sed -E "s/\\\e\[[0-9]{1,2}(m)//g"
-		log "$(sed -E "s/\\\e\[[0-9]{1,2}(m)//g" <<< "$message")"
 	fi
 }
 
