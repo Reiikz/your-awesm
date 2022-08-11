@@ -548,7 +548,7 @@ function downloadMod {
 	findSteam
 	coecho "$FC_LIGHT_GREEN" "Downloading $1 \"$(getModName $1)\""
 	local cmdline
-	cmdline="+login anonymous +workshop_download_item $APPID $1 +quit"
+	cmdline="+login ${PROFILE[STEAM_USERNAME]} +workshop_download_item $APPID $1 +quit"
 	coecho "$FC_LIGHT_CYAN$FC_BOLD" "steamcmd commandline dump: $cmdline"
 	coecho "$FC_LIGHT_CYAN$FC_BOLD" "dumping steamcmd output to: ${PROFILE[DUMP_FILES]}/latestSteamCMDdump.stdout"
 	coecho "$FC_LIGHT_GREEN" "Running steamcmd, this might take a while depending on the modpack size..."
@@ -916,7 +916,7 @@ function updateMods {
 
 		esac
 	fi
-	cmdline="+login anonymous"
+	cmdline="+login ${PROFILE[STEAM_USERNAME]}"
 	for c in $(seq 0 ${PARSED_MODPACK[~lastItem]}); do
 		local id=${PARSED_MODPACK[$c~id]}
 		local name=${PARSED_MODPACK[$c~name]}
@@ -942,7 +942,7 @@ function updateMods {
 			break
 		fi
 		local modnames=""
-		cmdline="+login anonymous"
+		cmdline="+login ${PROFILE[STEAM_USERNAME]}"
 		for m in ${errors[@]}; do
 			[ "$modnames" == "" ] && modnames="'${PARSED_MODPACK[$m~name]}'($m)" || modnames="$modnames, '${PARSED_MODPACK[$m~name]}'($m)"
 			cmdline="$cmdline +workshop_download_item $APPID $m"
@@ -980,7 +980,7 @@ function updateMods {
 		coecho "$FC_YELLOW$FC_BOLD" "Updating Extra mods"
 		coecho "$FC_LIGHT_GREEN" "Preparing for steamcmd..."
 		
-		cmdline="+login anonymous"
+		cmdline="+login ${PROFILE[STEAM_USERNAME]}"
 
 		for m in ${EXTRA_MODS[@]}; do
 			cmdline="$cmdline +workshop_download_item $APPID $m"
@@ -1006,7 +1006,7 @@ function updateMods {
 			fi
 			coecho "$FC_LIGHT_GREEN" "Preparing for steamcmd..."
 			
-			cmdline="+login anonymous"
+			cmdline="+login ${PROFILE[STEAM_USERNAME]}"
 
 			for m in ${EXTRA_MODS[@]}; do
 				cmdline="$cmdline +workshop_download_item $APPID $m"
@@ -1374,6 +1374,7 @@ function createProfile {
 		[ -z "${PROFILE[SELF_LOGGING]}" ] && PROFILE[SELF_LOGGING]="yes"
 		[ -z "${PROFILE[LOG_BACKUP]}" ] && PROFILE[LOG_BACKUP]="yes"
 		[ -z "${PROFILE[SERVICE_HANDLER]}" ] && PROFILE[SERVICE_HANDLER]="your-awesm"
+		[ -z "${PROFILE[STEAM_USERNAME]}" ] && PROFILE[STEAM_USERNAME]="anonymous"
 		reloadAliasMap
 		[ -z "${ALIASMAP[$CURRENT_PROFILE]}" ] && ALIASMAP[$CURRENT_PROFILE]="$CURRENT_PROFILE"
 		PROFILE[SCREEN_NAME]="$(heavilySanitize "${PROFILE[SCREEN_NAME]}")"
@@ -1665,6 +1666,21 @@ function profile {
 					ACTION="setProfileScreenName \"$1\""
 				else
 					coecho "$FC_BOLD$FC_YELLOW" "Expected screen name after $FC_LIGHT_CYAN$pop"
+					exit 1
+				fi
+				unset pop
+			;;
+
+			steam-user|steam-username)
+				pop="$1"
+				shift
+				if [ "$1" != "" ] && [ "$#" -gt 0 ]; then
+					local PREV="${PROFILE[STEAM_USERNAME]}"
+					PROFILE[STEAM_USERNAME]="$1"
+					saveProfile
+					coecho "$FC_LIGHT_GREEN$FC_BOLD" "Steam login changed from: $FC_LIGHT_CYAN$PREV$FC_LIGHT_GREEN to $FC_LIGHT_CYAN""$1"
+				else
+					coecho "$FC_BOLD$FC_YELLOW" "Expected steam username $FC_LIGHT_CYAN$pop"
 					exit 1
 				fi
 				unset pop
