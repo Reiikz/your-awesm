@@ -36,6 +36,43 @@
 # SOURCE_URL="https://github.com/Reiikz/your-awesm"
 # ERROR_REPORTING_TO="https://github.com/Reiikz/your-awesm/issues"
 
+#STARBOUND APP ID, this is the Game's APP ID and it is used to download mods, do not change it
+STARBOUND_APPID=211820
+
+# Register Common star-server exceptions
+
+registerException "your_awesm_undefined_profiler" "Expected PROFILER_DEFAULTS to be Assoc Array but it was not or not defined"
+
+# Load up profiler defaults, if not present we should crash
+if ! isAssoc PROFILER_DEFAULTS; then
+	throwEx "your_awesm_undefined_profiler"
+else
+	PROFILER_DEFAULTS[test]="xd"
+fi
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 function findSteam {
 	if [ -d "$USER_HOME/.steam/steam/steamapps" ]; then
 		declare -g -- STEAM="$USER_HOME/.steam/steam/steamapps"
@@ -153,3 +190,4 @@ function parseModpack {
 	cleanup
 	return 0
 }
+

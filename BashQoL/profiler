@@ -1,0 +1,69 @@
+#!/bin/bash
+
+#
+# MIT License
+#
+# Copyright (c) 2022 Reiikz
+#
+# Permission is hereby granted, free of charge,logs/sblogbackups/2022/08/06/00/starbound_server.log.1 to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+
+#######################################################################
+######			---------------------------------------------         #
+######							ATENTION                              #
+######			---------------------------------------------         #
+######		THIS IS JUST A LIBRARY CONTAINGING FUNCTIONS AND SHOULD   #
+######      NOT BE RAN MANUALLY 									  #
+######																  #
+#######################################################################
+
+# SOURCE_URL="https://github.com/Reiikz/your-awesm"
+# ERROR_REPORTING_TO="https://github.com/Reiikz/your-awesm/issues"
+
+# provides profiling and configuration functionality
+
+BASH_QOL_PROFILER_VERSION="0.0.1"
+
+if [ -z "${BASH_QOL_LIBRARIES[@]}" ]; then
+    declare -gA BASH_QOL_LIBRARIES=( [profiler]="$BASH_QOL_PROFILER_VERSION" )
+else
+    BASH_QOL_LIBRARIES[profiler]="$BASH_QOL_PROFILER_VERSION"
+fi
+
+
+#Define Global variables
+declare -gA PROFILE
+declare -gA PROFILER_DEFAULTS
+declare -gA CURRENT_PROFILE
+declare -gA PROFILES
+declare -gA PROFILE_ALIAS
+
+
+function closeIfNotProfile {
+	if [ -z "$CURRENT_PROFILE" ]; then
+		coecho "$FC_LIGHT_GREEN$FC_BOLD" "Current profile is not set, please change your current profile with $FC_LIGHT_CYAN$MYSELF -s <profile name> $FC_LIGHT_GREEN""or $FC_LIGHT_CYAN$MYSELF -s <profile alias>"
+		exit 1
+	fi
+}
+
+function profileInit {
+
+    echo
+
+}

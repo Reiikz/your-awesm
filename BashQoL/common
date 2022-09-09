@@ -97,12 +97,98 @@ function registerQoLCommonExceptions {
 	registerQoLException "qol_called_internal_ex" "$s""A program tried to call an internal library exception"
 	registerQoLException "qol_duplicate_ex" "$s""Duplicate exception $FC_LIGHT_CYAN%subject%"
 	registerQoLException "qol_tried_registering_internal_ex" "$s""A program tried registering an internal library exception"
+	registerQoLException "qol_unknown_data_validator" "$s""Tried to register option $FC_LIGHT_CYAN(%subject%)$FC_RED with unknown validator"
+	registerQoLException "qol_duplicate_validator" "$s""$FC_LIGHT_CYAN%subject%$FC_RED already exists"
 }
 
 function registerCommonExceptions {
 	local s="$FC_BOLD"
 	registerException "undefined" "$s$FC_LIGHT_CYAN%subject%$FC_RED is undefined"
 	registerException "nan"	"$s$FC_LIGHT_CYAN""%subject%$FC_RED is not a number"
+}
+
+############## Option parsing
+
+declare -gA INTERNAL_OPTION_ALIAS
+declare -gA INTERNAL_OPTIONS
+declare -gA INTERNAL_COMMANDS
+declare -g -- CURRENT_INTERNAL_COMMAND
+declare -g -- INTERNAL_OPTION_CONTEXT
+declare -gA INTERNAL_OPTION_DATA_TYPES=([string]="stringValidator")
+
+# DATA_TYPE HANDLER
+function registerInternalOptionValidator {
+	if isInArray INTERNAL_OPTION_DATA_TYPES "$1"; then
+		throwEx "qol_duplicate_validator" "$1"
+	fi
+	INTERNAL_OPTION_DATA_TYPES[$1]="$2"
+}
+
+function stringValidator {
+	echo "$@"
+}
+
+function runInternalCommand {
+	eval "$CURRENT_INTERNAL_COMMAND"
+}
+
+function isCurrentInternalCommand {
+	if [ -z "$CURRENT_INTERNAL_COMMAND" ]; then
+		return 1;
+	fi
+	return 0
+}
+
+function isInternalCommand {
+	if [ -z "${INTERNAL_COMMANDS[$1]}" ]; then
+		return 1;
+	fi
+	return 0
+}
+
+function setOption {
+	local conext=""
+	if [ ! -z "$INTERNAL_OPTION_CONTEXT" ]; then
+		context="$INTERNAL_OPTION_CONTEXT~"
+	fi
+	local data=""
+
+	
+	data="$2"
+
+	
+	INTERNAL_OPTIONS[$context$1~value]="$data"
+}
+
+function getOption {
+	local conext=""
+	if [ ! -z "$INTERNAL_OPTION_CONTEXT" ]; then
+		context="$INTERNAL_OPTION_CONTEXT~"
+	fi
+	echo "${INTERNAL_OPTIONS[$conext$1~value]}"
+}
+
+#ID DataType Description ALIASES
+function registerOption {
+	local id="$1"
+	local dataType="$2"
+	local description="$3"
+
+	local conext=""
+	if [ ! -z "$INTERNAL_OPTION_CONTEXT" ]; then
+		context="$INTERNAL_OPTION_CONTEXT~"
+	fi
+	
+	INTERNAL_OPTIONS[$context$id]="$description"
+	if [ ! -z "${INTERNAL_OPTION_DATA_TYPES[$dataType]}" ]; then
+		throwEx "qol_unknown_data_validator" "$dataType"
+	fi
+	
+	local c=1
+	while [ ! -z "$(cut -d',' -f$c)" ]; do
+		INTERNAL_OPTION_ALIAS["$(cut -d',' -f$c)"]="$id"
+		c=$(($c+1))
+	done
 }
 
 ############## echoing
@@ -225,6 +311,14 @@ function getMasterUniqueId {
     echo $$.${BASH_SOURCE[$((${#BASH_SOURCE[@]}-1))]}
 }
 
+function getMyself {
+	echo ${BASH_SOURCE[$((${#BASH_SOURCE[@]}-1))]}
+}
+
+function getMyCommandName {
+	echo $(basename ${BASH_SOURCE[$((${#BASH_SOURCE[@]}-1))]})
+}
+
 function reportMyself {
 	echo "$$" > /tmp/$(getMasterUniqueId).pid
 }
@@ -301,14 +395,17 @@ function isAssoc {
 }
 
 function isInArray {
-    eval "$(echo "$1" | sed -E "s/^declare -/declare -g -/g" | sed -E "s/declare -g -a [A-Za-z0-9]+=/declare -g -a temporary=/g")"
-    for x in ${temporary[@]}; do
-        if [ "$2" == "$x" ]; then
-            unset temporary
-            return 0
-        fi
-    done
-    unset temporary
+	if isArr $1; then
+		local type="$(declare -p $1 | grep -oE "^declare -(A|a)")"
+		eval "$type temporary$(declare -p penis | sed -E "s/^declare -(A|a)\s+//g" | sed -E "s/^[^=]*//g")"
+		for x in "${temporary[@]}"; do
+			if [ "$2" == "$x" ]; then
+				unset temporary
+				return 0
+			fi
+		done
+		unset temporary
+	fi
     return 1
 }
 
