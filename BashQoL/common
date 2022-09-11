@@ -99,12 +99,15 @@ function registerQoLCommonExceptions {
 	registerQoLException "qol_tried_registering_internal_ex" "$s""A program tried registering an internal library exception"
 	registerQoLException "qol_unknown_data_validator" "$s""Tried to register option $FC_LIGHT_CYAN(%subject%)$FC_RED with unknown validator"
 	registerQoLException "qol_duplicate_validator" "$s""$FC_LIGHT_CYAN%subject%$FC_RED already exists"
+	registerQoLException "qol_ambigous_command" "$s""Can not specify multiple commands (%subject%)"
+	registerQoLException "qol_code_request_unknown_option" "$s""(%subject%)$FC_RED is an unknown option"
 }
 
 function registerCommonExceptions {
 	local s="$FC_BOLD"
 	registerException "undefined" "$s$FC_LIGHT_CYAN%subject%$FC_RED is undefined"
 	registerException "nan"	"$s$FC_LIGHT_CYAN""%subject%$FC_RED is not a number"
+	registerException "invalid_option" "$s""$FC_LIGHT_CYAN""%subject%$FC_RED is not a valid option"
 }
 
 ############## Option parsing
@@ -114,6 +117,7 @@ declare -gA INTERNAL_OPTIONS
 declare -gA INTERNAL_COMMANDS
 declare -g -- CURRENT_INTERNAL_COMMAND
 declare -g -- INTERNAL_OPTION_CONTEXT
+declare -g -- CRASH_ON_INVALID_OPTION="yes"
 declare -gA INTERNAL_OPTION_DATA_TYPES=([string]="stringValidator")
 
 # DATA_TYPE HANDLER
@@ -124,6 +128,37 @@ function registerInternalOptionValidator {
 	INTERNAL_OPTION_DATA_TYPES[$1]="$2"
 }
 
+function evalParams {
+	while [ $# -gt 0 ]; do
+
+		if isInternalCommand "$1"; then
+			if [ ! -z "$CURRENT_INTERNAL_COMMAND" ]; then
+				throwEx qol_ambigous_command "$1 $CURRENT_INTERNAL_COMMAND"
+			fi
+
+			CURRENT_INTERNAL_COMMAND="$1"
+			shift
+			continue
+		fi
+		
+		local opt="$(getOptionID "$1")"
+
+		if [ -z "$opt" ]; then
+			if readbool $CRASH_ON_INVALID_OPTION; then
+				throwEx "invalid_option" "$1"
+			else
+				coecho "$FC_BOLD" "$FC_LIGHT_CYAN""$1$FC_YELLOW is not a valid option"
+			fi
+		else
+			shift
+			setOption $opt $@
+		fi
+
+	done
+
+	eval "$CURRENT_INTERNAL_COMMAND"
+}
+
 function stringValidator {
 	echo "$@"
 }
@@ -132,15 +167,18 @@ function runInternalCommand {
 	eval "$CURRENT_INTERNAL_COMMAND"
 }
 
-function isCurrentInternalCommand {
-	if [ -z "$CURRENT_INTERNAL_COMMAND" ]; then
-		return 1;
+function registerInternalCommand {
+	if ! isInArray INTERNAL_COMMANDS "$1"; then
+		INTERNAL_COMMANDS[$1]="$2"
 	fi
-	return 0
 }
 
 function isInternalCommand {
-	if [ -z "${INTERNAL_COMMANDS[$1]}" ]; then
+	local conext=""
+	if [ ! -z "$INTERNAL_OPTION_CONTEXT" ]; then
+		context="$INTERNAL_OPTION_CONTEXT~"
+	fi
+	if [ -z "${INTERNAL_COMMANDS[$conext$1]}" ]; then
 		return 1;
 	fi
 	return 0
@@ -151,13 +189,19 @@ function setOption {
 	if [ ! -z "$INTERNAL_OPTION_CONTEXT" ]; then
 		context="$INTERNAL_OPTION_CONTEXT~"
 	fi
+
+	if ! isValidOption "$1"; then
+		throwEx qol_code_request_unknown_option "$1"
+	fi
+	local opt="$1"
 	local data=""
 
-	
-	data="$2"
+
+	shift
+	data="$(eval "${INTERNAL_OPTIONS[$context$opt~parser]} $@")"
 
 	
-	INTERNAL_OPTIONS[$context$1~value]="$data"
+	INTERNAL_OPTIONS[$context$opt~value]="$data"
 }
 
 function getOption {
@@ -168,25 +212,44 @@ function getOption {
 	echo "${INTERNAL_OPTIONS[$conext$1~value]}"
 }
 
+#recives function alias (E: --option-alias --oa -o)
+function getOptionID {
+	echo "${INTERNAL_OPTION_ALIAS[$1]}"
+}
+
+function isValidOption {
+	local conext=""
+	if [ ! -z "$INTERNAL_OPTION_CONTEXT" ]; then
+		context="$INTERNAL_OPTION_CONTEXT~"
+	fi
+	if [ -z "${INTERNAL_OPTIONS[$context$1]}" ]; then
+		return 1
+	fi
+	return 0
+}
+
 #ID DataType Description ALIASES
-function registerOption {
+function registerInternalOption {
 	local id="$1"
 	local dataType="$2"
 	local description="$3"
+
+	[ -z "$description" ] && description="No description given"
 
 	local conext=""
 	if [ ! -z "$INTERNAL_OPTION_CONTEXT" ]; then
 		context="$INTERNAL_OPTION_CONTEXT~"
 	fi
-	
+
 	INTERNAL_OPTIONS[$context$id]="$description"
-	if [ ! -z "${INTERNAL_OPTION_DATA_TYPES[$dataType]}" ]; then
+	if [ -z "${INTERNAL_OPTION_DATA_TYPES[$dataType]}" ]; then
 		throwEx "qol_unknown_data_validator" "$dataType"
 	fi
-	
+	INTERNAL_OPTIONS[$context$id~parser]=${INTERNAL_OPTION_DATA_TYPES[$dataType]}
+
 	local c=1
-	while [ ! -z "$(cut -d',' -f$c)" ]; do
-		INTERNAL_OPTION_ALIAS["$(cut -d',' -f$c)"]="$id"
+	while [ ! -z "$(echo $4 | cut -d',' -f$c)" ]; do
+		INTERNAL_OPTION_ALIAS["$(echo $4 | cut -d',' -f$c)"]="$id"
 		c=$(($c+1))
 	done
 }
@@ -300,6 +363,11 @@ function throwEx {
 
 ############## Self checking
 
+function isDef {
+	declare -p $1 > /dev/null 2> /dev/null
+	return $?
+}
+
 function isQoL {
 	if [ -z "${BASH_QOL_LIBRARIES[$1]}" ]; then
 		echo -e "$FC_RED$FC_BOLD""B.QoL Error: Could not load library $1""$FC_RESET"
@@ -369,7 +437,7 @@ function getArrayKeyByValue {
 	declare -$type array="$data"
 	local needle="$2"
 
-	for x in ${!array[@]}; do
+	for x in "${!array[@]}"; do
 		if [ "${array[$x]}" == "$needle" ]; then
 			echo "$x"
 			return 0
@@ -397,7 +465,7 @@ function isAssoc {
 function isInArray {
 	if isArr $1; then
 		local type="$(declare -p $1 | grep -oE "^declare -(A|a)")"
-		eval "$type temporary$(declare -p penis | sed -E "s/^declare -(A|a)\s+//g" | sed -E "s/^[^=]*//g")"
+		eval "$type temporary$(declare -p $1 | sed -E "s/^declare -(A|a)\s+//g" | sed -E "s/^[^=]*//g")"
 		for x in "${temporary[@]}"; do
 			if [ "$2" == "$x" ]; then
 				unset temporary

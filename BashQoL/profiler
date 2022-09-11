@@ -39,8 +39,7 @@
 # provides profiling and configuration functionality
 
 BASH_QOL_PROFILER_VERSION="0.0.1"
-
-if [ -z "${BASH_QOL_LIBRARIES[@]}" ]; then
+if ! isDef BASH_QOL_LIBRARIES; then
     declare -gA BASH_QOL_LIBRARIES=( [profiler]="$BASH_QOL_PROFILER_VERSION" )
 else
     BASH_QOL_LIBRARIES[profiler]="$BASH_QOL_PROFILER_VERSION"

@@ -81,17 +81,11 @@ if ! source "$YOUR_AWESM_COMMON_LIBRARY"; then
 	exit 0;
 fi
 
-if [ -f "$CONFIG_DIR/PRERUN" ]; then
-	source "$CONFIG_DIR/PRERUN"
-fi
-
 
 DOCUMENTATION="The Manual (man $(getMyCommandName))"
 
 
 MY_UID="$(getMasterUniqueId)"
-
-source $USER_HOME/.bashrc 2>/dev/null
 
 ######## register star-server unique exceptions
 
@@ -105,13 +99,23 @@ function printCopyright {
 	coecho "$FC_BOLD$FC_LIGHT_GREEN" "Report bugs to: $FC_BLUE$ERROR_REPORTING_TO"
 	coecho "$FC_BOLD$FC_LIGHT_GREEN" "For documentation refer to: $FC_BLUE$DOCUMENTATION"
 }
-
-echo "${PROFILER_DEFAULTS[test]}"
 #parse options
 
-if [ $# -ge 0 ]; then
+if [ $# -eq 0 ]; then
 	printCopyright
 	exit 0
 fi
 
+####### Register own's options
 
+registerInternalCommand "profile" "profile"
+registerInternalOption "sample_option" "string" "" "--sample-option,--sample"
+
+function profile {
+
+	echo profile $(getOption sample_option)
+
+}
+
+
+evalParams $@

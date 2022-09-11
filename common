@@ -44,11 +44,11 @@ STARBOUND_APPID=211820
 registerException "your_awesm_undefined_profiler" "Expected PROFILER_DEFAULTS to be Assoc Array but it was not or not defined"
 
 # Load up profiler defaults, if not present we should crash
-if ! isAssoc PROFILER_DEFAULTS; then
-	throwEx "your_awesm_undefined_profiler"
-else
-	PROFILER_DEFAULTS[test]="xd"
-fi
+# if ! isAssoc PROFILER_DEFAULTS; then
+# 	throwEx "your_awesm_undefined_profiler"
+# else
+# 	PROFILER_DEFAULTS[test]="xd"
+# fi
 
 
 
