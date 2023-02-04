@@ -24,21 +24,9 @@
 # SOFTWARE.
 #
 
-#######################################################################
-######			---------------------------------------------         #
-######							ATENTION                              #
-######			---------------------------------------------         #
-######		PREVIOUSLY THIS SCRIPT REQUIRED THE MODIFICATION          #
-######		OF IN FILE VARIABLES, THIS HOWEVER IS NO LONGER THE CASE  #
-######		PLEASE REFER TO THE HELP GIVEN WHEN RUNNING THE SCRIPT    #
-######		WITH NO OPTIONS FOR MORE INFORMATION ON HOW TO CONFIGURE  #
-######		YOUR STARBOUND SERVER									  #
-######																  #
-#######################################################################
-
 
 VERSION="sid-(development version)"
-COPYRIGHT_YEAR="2022"
+COPYRIGHT_YEAR="2022 - $(date +"%Y")"
 SOURCE_URL="https://github.com/Reiikz/your-awesm"
 ERROR_REPORTING_TO="https://github.com/Reiikz/your-awesm/issues"
 CONFIGVER=2
@@ -106,10 +94,10 @@ if [ $# -eq 0 ]; then
 	exit 0
 fi
 
-####### Register own's options
+####### Register starserver program options
 
 registerInternalCommand "profile" "profile"
-registerInternalOption "sample_option" "string" "" "--sample-option,--sample"
+registerInternalOption "sample_option" "string" "" "--sample-option,--sample,-s,-q"
 
 function profile {
 

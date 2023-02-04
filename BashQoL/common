@@ -101,6 +101,7 @@ function registerQoLCommonExceptions {
 	registerQoLException "qol_duplicate_validator" "$s""$FC_LIGHT_CYAN%subject%$FC_RED already exists"
 	registerQoLException "qol_ambigous_command" "$s""Can not specify multiple commands (%subject%)"
 	registerQoLException "qol_code_request_unknown_option" "$s""(%subject%)$FC_RED is an unknown option"
+	registerQoLException "qol_failed_to_parse" "$s""Option Could not be parsed"
 }
 
 function registerCommonExceptions {
@@ -118,7 +119,7 @@ declare -gA INTERNAL_COMMANDS
 declare -g -- CURRENT_INTERNAL_COMMAND
 declare -g -- INTERNAL_OPTION_CONTEXT
 declare -g -- CRASH_ON_INVALID_OPTION="yes"
-declare -gA INTERNAL_OPTION_DATA_TYPES=([string]="stringValidator")
+declare -gA INTERNAL_OPTION_DATA_TYPES=(["string"]="stringValidator" ["none"]="nonArgParameter")
 
 # DATA_TYPE HANDLER
 function registerInternalOptionValidator {
@@ -151,7 +152,15 @@ function evalParams {
 			fi
 		else
 			shift
-			setOption $opt $@
+			collectOptionParams $opt $@
+			for x in $(seq 1 $VALIDATOR_SKIP); do
+				shift
+			done
+			setOption $opt $OPTION_PARAMS
+			unset OPTION_PARAMS
+			
+			unset opt
+			unset VALIDATOR_SKIP
 		fi
 
 	done
@@ -159,8 +168,58 @@ function evalParams {
 	eval "$CURRENT_INTERNAL_COMMAND"
 }
 
+function collectOptionParams {
+	local conext=""
+	if [ ! -z "$INTERNAL_OPTION_CONTEXT" ]; then
+		context="$INTERNAL_OPTION_CONTEXT~"
+	fi
+	local opt="$1"
+	local optParser="${INTERNAL_OPTIONS[$context$opt~parser]}"
+	shift
+	local params=""
+
+	declare -g -- VALIDATOR_SKIP="0"
+
+	if [ "$optParser" !=  "nonArgParameter" ]; then
+		while [ $# -gt 0 ]; do
+
+			
+			if [ $VALIDATOR_SKIP -ge 1 ]; then
+
+				if inputOptionExists "$1"; then
+					break
+				fi
+
+				if isInternalCommand "$1"; then
+					break
+				fi
+
+				if strStartsWith "$1" "-"; then
+					break
+				fi
+			fi
+
+			params="$([ -z "$params" ] && echo "$1" || echo "$params $1")"
+
+			shift
+
+			VALIDATOR_SKIP=$(($VALIDATOR_SKIP+1))
+
+		done
+	fi
+
+	declare -g -- OPTION_PARAMS="$params"
+
+}
+
+function nonArgParameter {
+	declare -g -- VALIDATOR_SKIP=0
+	declare -g -- OPTION_DATA="yes"
+}
+
 function stringValidator {
-	echo "$@"
+	declare -g -- VALIDATOR_SKIP=$#
+	declare -g -- OPTION_DATA="$@"
 }
 
 function runInternalCommand {
@@ -196,12 +255,16 @@ function setOption {
 	local opt="$1"
 	local data=""
 
-
 	shift
-	data="$(eval "${INTERNAL_OPTIONS[$context$opt~parser]} $@")"
 
+	${INTERNAL_OPTIONS[$context$opt~parser]} $@
+	if [ $? -gt 0 ]; then
+		throwEx "qol_failed_to_parse"
+	fi
+
+	INTERNAL_OPTIONS[$context$opt~value]="$OPTION_DATA"
 	
-	INTERNAL_OPTIONS[$context$opt~value]="$data"
+	unset OPTION_DATA
 }
 
 function getOption {
@@ -215,6 +278,13 @@ function getOption {
 #recives function alias (E: --option-alias --oa -o)
 function getOptionID {
 	echo "${INTERNAL_OPTION_ALIAS[$1]}"
+}
+
+function inputOptionExists {
+	if [ -z "${INTERNAL_OPTION_ALIAS[$1]}" ]; then
+		return 1
+	fi
+	return 0
 }
 
 function isValidOption {
@@ -245,7 +315,12 @@ function registerInternalOption {
 	if [ -z "${INTERNAL_OPTION_DATA_TYPES[$dataType]}" ]; then
 		throwEx "qol_unknown_data_validator" "$dataType"
 	fi
+
 	INTERNAL_OPTIONS[$context$id~parser]=${INTERNAL_OPTION_DATA_TYPES[$dataType]}
+	if [ "${INTERNAL_OPTIONS[$context$id~parser]}" == "nonArgParameter" ]; then
+		declare -g -- OPTION_DATA="no"
+		setOption "$id"
+	fi
 
 	local c=1
 	while [ ! -z "$(echo $4 | cut -d',' -f$c)" ]; do
