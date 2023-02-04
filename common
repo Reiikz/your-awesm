@@ -50,10 +50,27 @@ registerException "your_awesm_undefined_profiler" "Expected PROFILER_DEFAULTS to
 # 	PROFILER_DEFAULTS[test]="xd"
 # fi
 
+##no te olvides de añadir opciones globales
 
+registerInternalOption "profile_name" "string" "Name of the profile that's getting worked on" "--profile,-P"
+registerInternalOption "Profile" "subcommand" "" "profile,"
 
+function Profile {
 
+	INTERNAL_OPTION_CONTEXT="Profile"
+	copyOptionToCurrentContext "" "profile_name"
+	registerInternalOption "CreateProfile" "subcommand" "Create a profile" "create,"
+	evalParams $@
 
+}
+
+function CreateProfile {
+
+	evalParams $@
+
+	echo create profile $(getOption profile_name 0 yes)
+
+}
 
 
 

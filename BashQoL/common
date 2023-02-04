@@ -102,6 +102,7 @@ function registerQoLCommonExceptions {
 	registerQoLException "qol_ambigous_command" "$s""Can not specify multiple commands (%subject%)"
 	registerQoLException "qol_code_request_unknown_option" "$s""(%subject%)$FC_RED is an unknown option"
 	registerQoLException "qol_failed_to_parse" "$s""Option Could not be parsed"
+	registerQoLException "qol_req_array_to_single" "$s""Requested array out of a single value option"
 }
 
 function registerCommonExceptions {
@@ -109,6 +110,8 @@ function registerCommonExceptions {
 	registerException "undefined" "$s$FC_LIGHT_CYAN%subject%$FC_RED is undefined"
 	registerException "nan"	"$s$FC_LIGHT_CYAN""%subject%$FC_RED is not a number"
 	registerException "invalid_option" "$s""$FC_LIGHT_CYAN""%subject%$FC_RED is not a valid option"
+	registerException "array_overflow" "$s""$FC_LIGHT_CYAN""%subject%$FC_RED out of index"
+	registerException "array_underflow" "$s""$FC_LIGHT_CYAN""%subject%$FC_RED out of index"
 }
 
 ############## Option parsing
@@ -119,7 +122,7 @@ declare -gA INTERNAL_COMMANDS
 declare -g -- CURRENT_INTERNAL_COMMAND
 declare -g -- INTERNAL_OPTION_CONTEXT
 declare -g -- CRASH_ON_INVALID_OPTION="yes"
-declare -gA INTERNAL_OPTION_DATA_TYPES=(["string"]="stringValidator" ["none"]="nonArgParameter")
+declare -gA INTERNAL_OPTION_DATA_TYPES=(["string"]="stringValidator" ["none"]="nonArgParameter" ["subcommand"]="subCommandValidator")
 
 # DATA_TYPE HANDLER
 function registerInternalOptionValidator {
@@ -130,6 +133,7 @@ function registerInternalOptionValidator {
 }
 
 function evalParams {
+
 	while [ $# -gt 0 ]; do
 
 		if isInternalCommand "$1"; then
@@ -165,7 +169,7 @@ function evalParams {
 
 	done
 
-	eval "$CURRENT_INTERNAL_COMMAND"
+	runInternalCommand
 }
 
 function collectOptionParams {
@@ -180,40 +184,50 @@ function collectOptionParams {
 
 	declare -g -- VALIDATOR_SKIP="0"
 
-	if [ "$optParser" !=  "nonArgParameter" ]; then
-	
-		while [ $# -gt 0 ]; do
+	case $optParser in
+		
+		subCommandValidator)
+			VALIDATOR_SKIP=$#
+			declare -g -- ARGUMENT_PASSTHROUGH="$@"
+		;;
 
-			
-			if [ $VALIDATOR_SKIP -ge 1 ]; then
+		nonArgParameter)
+		;;
 
-				if inputOptionExists "$1"; then
-					break
+		*)
+			while [ $# -gt 0 ]; do
+
+				if [ $VALIDATOR_SKIP -ge 1 ]; then
+
+					if inputOptionExists "$1"; then
+						break
+					fi
+
+					if isInternalCommand "$1"; then
+						break
+					fi
+
+					if strStartsWith "$1" "-"; then
+						break
+					fi
 				fi
 
-				if isInternalCommand "$1"; then
-					break
-				fi
+				params="$([ -z "$params" ] && echo "$1" || echo "$params $1")"
 
-				if strStartsWith "$1" "-"; then
-					break
-				fi
-			fi
+				shift
 
-			params="$([ -z "$params" ] && echo "$1" || echo "$params $1")"
+				VALIDATOR_SKIP=$(($VALIDATOR_SKIP+1))
+			done
+		;;
 
-			shift
-
-			VALIDATOR_SKIP=$(($VALIDATOR_SKIP+1))
-
-		done
-	fi
+	esac
 
 	declare -g -- OPTION_PARAMS="$params"
 
 }
 
 function nonArgParameter {
+	shift
 	declare -g -- VALIDATOR_SKIP=0
 	if [ ! -z "$OPTION_DATA" ]; then
 		return 0
@@ -223,17 +237,33 @@ function nonArgParameter {
 }
 
 function stringValidator {
-	declare -g -- VALIDATOR_SKIP=$#
+	shift
 	declare -g -- OPTION_DATA="$@"
 }
 
+function subCommandValidator {
+	local commandName="$1"
+	shift
+	declare -g -- OPTION_DATA="$@"
+	if [ -z "$CURRENT_INTERNAL_COMMAND" ]; then
+		declare -g -- CURRENT_INTERNAL_COMMAND="$commandName"
+	fi
+}
+
 function runInternalCommand {
-	eval "$CURRENT_INTERNAL_COMMAND"
+	local command="$CURRENT_INTERNAL_COMMAND $ARGUMENT_PASSTHROUGH"
+	unset CURRENT_INTERNAL_COMMAND
+	unset ARGUMENT_PASSTHROUGH
+	eval "$command"
 }
 
 function registerInternalCommand {
-	if ! isInArray INTERNAL_COMMANDS "$1"; then
-		INTERNAL_COMMANDS[$1]="$2"
+	local conext=""
+	if [ ! -z "$INTERNAL_OPTION_CONTEXT" ]; then
+		context="$INTERNAL_OPTION_CONTEXT~"
+	fi
+	if ! isInArray INTERNAL_COMMANDS "$conext$1"; then
+		INTERNAL_COMMANDS[$conext$1]="$2"
 	fi
 }
 
@@ -262,22 +292,65 @@ function setOption {
 
 	shift
 
-	${INTERNAL_OPTIONS[$context$opt~parser]} $@
+	${INTERNAL_OPTIONS[$context$opt~parser]} $opt $@
+
 	if [ $? -gt 0 ]; then
 		throwEx "qol_failed_to_parse"
 	fi
 
-	INTERNAL_OPTIONS[$context$opt~value]="$OPTION_DATA"
+	if [ ! -z "${INTERNAL_OPTIONS[$context$opt~value]}" ]; then
+		if [ -z ${INTERNAL_OPTIONS[$context$opt~value~count]} ]; then
+			INTERNAL_OPTIONS[$context$opt~value~0]="${INTERNAL_OPTIONS[$context$opt~value]}"
+			INTERNAL_OPTIONS[$context$opt~value~count]=1
+		fi
+		INTERNAL_OPTIONS[$context$opt~value~${INTERNAL_OPTIONS[$context$opt~value~count]}]=$OPTION_DATA
+		INTERNAL_OPTIONS[$context$opt~value~count]=$((${INTERNAL_OPTIONS[$context$opt~value~count]}+1))
+	else
+		INTERNAL_OPTIONS[$context$opt~value]="$OPTION_DATA"
+	fi
 	
 	unset OPTION_DATA
 }
 
+function isOptionArray {
+	if [ -z "${INTERNAL_OPTIONS[$conext$1~value~count]}" ]; then
+		return 1
+	fi
+	return 0
+}
+
+#usage: getOption option_id option_index ignore_context
+#		id 0 can be passed for singles + ignore context
 function getOption {
 	local conext=""
 	if [ ! -z "$INTERNAL_OPTION_CONTEXT" ]; then
 		context="$INTERNAL_OPTION_CONTEXT~"
 	fi
-	echo "${INTERNAL_OPTIONS[$conext$1~value]}"
+	local index="$2"
+	local out=""
+	if [ ! -z "$index" ]; then
+
+		if ! isInteger "$index"; then
+			throwEx "nan"
+		fi
+
+		if [ $index -eq 0 ]; then
+			out="${INTERNAL_OPTIONS[$context$1~value]}"
+			if readbool "$3" && [ -z "$out" ]; then
+				out="${INTERNAL_OPTIONS[$1~value]}"
+			fi
+		else
+			out="${INTERNAL_OPTIONS[$context$1~value~$index]}"
+			if readbool "$3" && [ -z "$out" ]; then
+				out="${INTERNAL_OPTIONS[$1~value~$index]}"
+			fi
+		fi
+		echo "$out"
+
+	else
+		echo "${INTERNAL_OPTIONS[$conext$1~value]}"
+	fi
+
 }
 
 #recives function alias (E: --option-alias --oa -o)
@@ -331,6 +404,22 @@ function registerInternalOption {
 	while [ ! -z "$(echo $4 | cut -d',' -f$c)" ]; do
 		INTERNAL_OPTION_ALIAS["$(echo $4 | cut -d',' -f$c)"]="$id"
 		c=$(($c+1))
+	done
+}
+
+function copyOptionToCurrentContext {
+	local foreignContext="$1"
+	local id="$2"
+	local conext=""
+	if [ ! -z "$INTERNAL_OPTION_CONTEXT" ]; then
+		context="$INTERNAL_OPTION_CONTEXT~"
+	fi
+	INTERNAL_OPTIONS[$context$id~parser]="${INTERNAL_OPTIONS[$foreignContext$id~parser]}"
+	INTERNAL_OPTIONS[$context$id]="${INTERNAL_OPTIONS[$foreignContext$id]}"
+	INTERNAL_OPTIONS[$context$id~value]="${INTERNAL_OPTIONS[$foreignContext$id~value]}"
+	INTERNAL_OPTIONS[$context$id~value~count]="${INTERNAL_OPTIONS[$foreignContext$id~value~count]}"
+	for x in $(seq 1 $((${INTERNAL_OPTIONS[$foreignContext$id~value~count]}-1))); do
+		INTERNAL_OPTIONS[$context$id~value~$x]="${INTERNAL_OPTIONS[$foreignContext$id~value~$x]}"
 	done
 }
 
@@ -503,6 +592,18 @@ function toLower {
 function isYes {
 	if [ "yes" == "$(toLower "$1")" ]; then
 		return 0
+	fi
+	return 1
+}
+
+############## Numeric functions
+
+function isInteger {
+
+	if [ -z "$(echo "$1" | grep -oE "[^0-9-]")" ]; then
+		if [ ! -z "$(echo "$1" | grep -oE "^(-){0,1}[0-9]+$")" ]; then
+			return 0
+		fi
 	fi
 	return 1
 }
