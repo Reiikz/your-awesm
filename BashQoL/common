@@ -181,6 +181,7 @@ function collectOptionParams {
 	declare -g -- VALIDATOR_SKIP="0"
 
 	if [ "$optParser" !=  "nonArgParameter" ]; then
+	
 		while [ $# -gt 0 ]; do
 
 			
@@ -214,7 +215,11 @@ function collectOptionParams {
 
 function nonArgParameter {
 	declare -g -- VALIDATOR_SKIP=0
-	declare -g -- OPTION_DATA="yes"
+	if [ ! -z "$OPTION_DATA" ]; then
+		return 0
+	else
+		declare -g -- OPTION_DATA="yes"
+	fi
 }
 
 function stringValidator {

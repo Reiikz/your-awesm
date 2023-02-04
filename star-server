@@ -98,10 +98,12 @@ fi
 
 registerInternalCommand "profile" "profile"
 registerInternalOption "sample_option" "string" "" "--sample-option,--sample,-s,-q"
+registerInternalOption "non_parameter_option" "none" "" "--test-non-parameter,"
 
 function profile {
 
 	echo profile $(getOption sample_option)
+	echo non parameter option $(getOption non_parameter_option)
 
 }
 
