@@ -64,11 +64,39 @@ function Profile {
 
 }
 
+function setProfiledDir {
+	local name="$1"
+	local path="$2"
+	PROFILE[$name]=$path
+	mkdir -p "$path"
+}
+
+function loadDefaultProfile {
+
+	local name=""
+	if [ ! -z "$1" ]; then
+		name="$1"
+	else
+		name="main"
+	fi
+
+	declare -gA PROFILE
+	PROFILE[NAME]="$name"
+	setProfiledDir "PATH" "$(getStoragePath)/$name"
+	setProfiledDir "CONFIG_PATH" "$(getConfigPath)/$name"
+	setProfiledDir "CACHE" "$(getCachePath)/$name"
+	setProfiledDir "MOD_CACHE" "$(getCachePath)/$name/MOD_CACHE"
+	# PROFILE[path]
+}
+
 function CreateProfile {
 
 	evalParams $@
 
-	echo create profile $(getOption profile_name 0 yes)
+	loadDefaultProfile
+	
+	dumpAssocArray PROFILE
+
 
 }
 

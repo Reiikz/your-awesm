@@ -54,6 +54,7 @@ FC_BOLD="\e[1m"
 
 #FORMATTING
 FC_DEFAULT_COLOR="\e[39m"
+FC_BLACK="\e[30m"
 FC_RED="\e[31m"
 FC_GREEN="\e[32m"
 FC_YELLOW="\e[33m"
@@ -428,6 +429,7 @@ function copyOptionToCurrentContext {
 function coecho {
 	local formatting=""
 	local message=""
+	local tabulations=""
 
 	if [ $# -ne 1 ]; then
 		formatting="$1"
@@ -437,7 +439,12 @@ function coecho {
 		[ "$message" == "" ] && message="$1" || message="$message $1"
 		shift
 	done
-	echo -e "$formatting$message$FC_RESET"
+	if [ ! -z "$COECHO_TABS" ]; then
+		for x in $(seq 1 $COECHO_TABS); do
+			tabulations="  "
+		done
+	fi
+	echo -e "$formatting$tabulations$message$FC_RESET"
 }
 
 function isException {
@@ -545,7 +552,11 @@ function isQoL {
 }
 
 function getMasterUniqueId {
-    echo $$.${BASH_SOURCE[$((${#BASH_SOURCE[@]}-1))]}
+    echo $$.$(basename ${BASH_SOURCE[$((${#BASH_SOURCE[@]}-1))]})
+}
+
+function getMyFileName {
+	echo $(basename ${BASH_SOURCE[$((${#BASH_SOURCE[@]}-1))]})
 }
 
 function getMyself {
@@ -562,6 +573,22 @@ function reportMyself {
 
 function fullCleanup {
 	rm -rf /tmp/$(getMasterUniqueId).pid
+}
+
+function getHome {
+	echo "$(getent passwd $(whoami) | cut -d':' -f6)"
+}
+
+function getStoragePath {
+	echo "$(getHome)/.local/lib/$PROGRAM_PREFIX.$(getMyFileName)"
+}
+
+function getConfigPath {
+	echo "$(getHome)/.config/$PROGRAM_PREFIX.$(getMyFileName)"
+}
+
+function getCachePath {
+	echo "$(getHome)/.cache/$PROGRAM_PREFIX.$(getMyFileName)"
 }
 
 ############## STRING FUNCTIONS
@@ -658,6 +685,44 @@ function isInArray {
     return 1
 }
 
+function dumpAssocArray {
+
+	eval "$(declare -p $1 | sed -E "s/declare\s+-A\s+$1/declare -A ___ARR/g")"
+
+	coecho "$FC_BOLD$FC_BLUE" "Dumping $1"
+	declare -g -- COECHO_TABS="1"
+
+	local cc=0
+	local mccount=0
+	for x in "${!___ARR[@]}"; do
+		cc=$(($(wc -m <<< "$x")-1))
+		if [ $cc -gt $mccount ]; then
+			mccount=$cc
+		fi
+	done
+	
+	cc=0
+	local colonDisplacement=0
+	local displacement=""
+	local message=""
+	local separator=""
+	for x in "${!___ARR[@]}"; do
+		cc=$(($(wc -m <<< "$x")-1))
+		colonDisplacement=$(($mccount-$cc))
+
+		for y in $(seq 1 $colonDisplacement); do displacement="$displacement "; done
+		message="$x""$FC_LIGHT_YELLOW""$displacement: ""$FC_LIGHT_CYAN${___ARR[$x]}"
+		for y in $(seq 1 $(($(wc -m <<< "$message")-1))); do separator="$separator""_"; done
+		coecho "$FC_BOLD$FC_BLACK" "$separator"
+		coecho "$FC_BOLD$FC_GREEN" "$message"
+
+		displacement=""
+		separator=""
+	done
+
+	unset COECHO_TABS
+	unset ___ARR
+}
 
 ############## Variable persistence
 

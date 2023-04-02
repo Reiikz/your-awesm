@@ -42,6 +42,8 @@ BASH_QOL_SCREEN="$INSTALL_PREFIX/lib/reiikz/bash-qol/screen"
 BASH_QOL_PROFILER="$INSTALL_PREFIX/lib/reiikz/bash-qol/profiler"
 YOUR_AWESM_COMMON_LIBRARY="$INSTALL_PREFIX/lib/reiikz/your-awesm/common"
 
+PROGRAM_PREFIX="RZ"
+
 #load up main library
 
 if ! source "$BASH_QOL_MAIN"; then
