@@ -346,23 +346,20 @@ function getOption {
 				out="${INTERNAL_OPTIONS[$1~value~$index]}"
 			fi
 		fi
-		if [ -z "$out" ]; then
-			if [ "${INTERNAL_OPTIONS[$id~parser]}" == "nonArgParameter" ]; then
-				echo "no"
-				return 0
-			fi
-		fi
-		echo "$out"
-
 	else
-		if [ -z "${INTERNAL_OPTIONS[$conext$1~value]}" ]; then
-			if [ "${INTERNAL_OPTIONS[$id~parser]}" == "nonArgParameter" ]; then
-				echo "no"
-				return 0
-			fi
-		fi
-		echo "${INTERNAL_OPTIONS[$conext$1~value]}"
+		out="${INTERNAL_OPTIONS[$conext$1~value]}"
 	fi
+
+	if [ -z "$out" ]; then
+		if [ "${INTERNAL_OPTIONS[$1~parser]}" == "nonArgParameter" ]; then
+			INTERNAL_OPTIONS[$context$1~value]="no"
+			INTERNAL_OPTIONS[$1~value]="no"
+			INTERNAL_OPTIONS[$1~value~$index]="no"
+			out="no"
+		fi
+	fi
+
+	echo "$out"
 
 }
 

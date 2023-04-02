@@ -110,8 +110,9 @@ function loadDefaultProfile {
 
 function DeleteProfile {
 	evalParams $@
-	echo force option: $(getOption "force" 0 "yes")
-	dumpAssocArray INTERNAL_OPTIONS
+	# getOption "force" 0 "yes"
+	# echo force option: $(getOption "force" 0 "yes")
+	# dumpAssocArray INTERNAL_OPTIONS
 	# dumpAssocArray INTERNAL_OPTION_ALIAS
 	# coecho "$FC_BOLD$FC_LIGHT_YELLOW" "THIS WILL SMITE YOUR ENTIRE SERVER PROFILE"
 	# declare -g -- COECHO_ECHO_OPTS="-n"
