@@ -134,9 +134,8 @@ function registerInternalOptionValidator {
 }
 
 function evalParams {
-
+	# echo $@
 	while [ $# -gt 0 ]; do
-
 		if isInternalCommand "$1"; then
 			if [ ! -z "$CURRENT_INTERNAL_COMMAND" ]; then
 				throwEx qol_ambigous_command "$1 $CURRENT_INTERNAL_COMMAND"
@@ -148,7 +147,7 @@ function evalParams {
 		fi
 		
 		local opt="$(getOptionID "$1")"
-
+		# echo "parsing opt: $1"
 		if [ -z "$opt" ]; then
 			if readbool $CRASH_ON_INVALID_OPTION; then
 				throwEx "invalid_option" "$1"
@@ -193,6 +192,7 @@ function collectOptionParams {
 		;;
 
 		nonArgParameter)
+			params=yes
 		;;
 
 		*)
@@ -224,17 +224,18 @@ function collectOptionParams {
 	esac
 
 	declare -g -- OPTION_PARAMS="$params"
-
+	# echo $opt : $OPTION_PARAMS
 }
 
 function nonArgParameter {
+	# echo $@
 	shift
-	declare -g -- VALIDATOR_SKIP=0
-	if [ ! -z "$OPTION_DATA" ]; then
-		return 0
-	else
-		declare -g -- OPTION_DATA="yes"
-	fi
+	declare -g -- OPTION_DATA="$1"
+	# if [ ! -z "$OPTION_DATA" ]; then
+	# 	return 0
+	# else
+	# 	declare -g -- OPTION_DATA="yes"
+	# fi
 }
 
 function stringValidator {
@@ -289,7 +290,6 @@ function setOption {
 		throwEx qol_code_request_unknown_option "$1"
 	fi
 	local opt="$1"
-	local data=""
 
 	shift
 
@@ -346,9 +346,21 @@ function getOption {
 				out="${INTERNAL_OPTIONS[$1~value~$index]}"
 			fi
 		fi
+		if [ -z "$out" ]; then
+			if [ "${INTERNAL_OPTIONS[$id~parser]}" == "nonArgParameter" ]; then
+				echo "no"
+				return 0
+			fi
+		fi
 		echo "$out"
 
 	else
+		if [ -z "${INTERNAL_OPTIONS[$conext$1~value]}" ]; then
+			if [ "${INTERNAL_OPTIONS[$id~parser]}" == "nonArgParameter" ]; then
+				echo "no"
+				return 0
+			fi
+		fi
 		echo "${INTERNAL_OPTIONS[$conext$1~value]}"
 	fi
 
@@ -444,7 +456,7 @@ function coecho {
 			tabulations="  "
 		done
 	fi
-	echo -e "$formatting$tabulations$message$FC_RESET"
+	echo -e $COECHO_ECHO_OPTS "$formatting$tabulations$message$FC_RESET"
 }
 
 function isException {
@@ -552,11 +564,11 @@ function isQoL {
 }
 
 function getMasterUniqueId {
-    echo $$.$(basename ${BASH_SOURCE[$((${#BASH_SOURCE[@]}-1))]})
+    echo "$$.$(basename ${BASH_SOURCE[$((${#BASH_SOURCE[@]}-1))]})"
 }
 
 function getMyFileName {
-	echo $(basename ${BASH_SOURCE[$((${#BASH_SOURCE[@]}-1))]})
+	echo "$(basename ${BASH_SOURCE[$((${#BASH_SOURCE[@]}-1))]})"
 }
 
 function getMyself {
@@ -568,11 +580,11 @@ function getMyCommandName {
 }
 
 function reportMyself {
-	echo "$$" > /tmp/$(getMasterUniqueId).pid
+	echo "$$" > $(getTmpPath)/$(getMasterUniqueId).pid
 }
 
 function fullCleanup {
-	rm -rf /tmp/$(getMasterUniqueId).pid
+	rm -rf $(getTmpPath)/$(getMasterUniqueId).pid
 }
 
 function getHome {
@@ -589,6 +601,10 @@ function getConfigPath {
 
 function getCachePath {
 	echo "$(getHome)/.cache/$PROGRAM_PREFIX.$(getMyFileName)"
+}
+
+function getTmpPath {
+	echo "/tmp/$PROGRAM_PREFIX.BashQoL"
 }
 
 ############## STRING FUNCTIONS

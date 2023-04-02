@@ -41,7 +41,7 @@ STARBOUND_APPID=211820
 
 # Register Common star-server exceptions
 
-registerException "your_awesm_undefined_profiler" "Expected PROFILER_DEFAULTS to be Assoc Array but it was not or not defined"
+# registerException "your_awesm_undefined_profiler" "Expected PROFILER_DEFAULTS to be Assoc Array but it was not or not defined"
 
 # Load up profiler defaults, if not present we should crash
 # if ! isAssoc PROFILER_DEFAULTS; then
@@ -54,12 +54,16 @@ registerException "your_awesm_undefined_profiler" "Expected PROFILER_DEFAULTS to
 
 registerInternalOption "profile_name" "string" "Name of the profile that's getting worked on" "--profile,-P"
 registerInternalOption "Profile" "subcommand" "" "profile,"
+registerInternalOption "force" "none" "Take the course of action that provokes change without confirmation" "-f,--force"
 
 function Profile {
 
 	INTERNAL_OPTION_CONTEXT="Profile"
 	copyOptionToCurrentContext "" "profile_name"
+	copyOptionToCurrentContext "" "force"
 	registerInternalOption "CreateProfile" "subcommand" "Create a profile" "create,"
+	registerInternalOption "DeleteProfile" "subcommand" "Delete currently selected profile"  "delete,"
+
 	evalParams $@
 
 }
@@ -67,8 +71,21 @@ function Profile {
 function setProfiledDir {
 	local name="$1"
 	local path="$2"
-	PROFILE[$name]=$path
+	PROFILE[$name]="$path"
+
+	if [ -z "${PROFILE[DIRLIST~count]}" ]; then
+		PROFILE[DIRLIST~count]=0
+	fi
+	PROFILE[DIRLIST~${PROFILE[DIRLIST~count]}]="$path"
+	PROFILE[DIRLIST~count]=$((${PROFILE[DIRLIST~count]}+1))
+
 	mkdir -p "$path"
+}
+
+function deleteProfileDirs {
+	for x in $(seq 0 $((${PROFILE[DIRLIST~count]}-1))); do
+		rm -rf ${PROFILE[DIRLIST~$x]}
+	done
 }
 
 function loadDefaultProfile {
@@ -77,7 +94,10 @@ function loadDefaultProfile {
 	if [ ! -z "$1" ]; then
 		name="$1"
 	else
-		name="main"
+		name="$(getOption profile_name 0 yes)"
+		if [ -z "$name" ]; then
+			name="main"
+		fi
 	fi
 
 	declare -gA PROFILE
@@ -86,7 +106,23 @@ function loadDefaultProfile {
 	setProfiledDir "CONFIG_PATH" "$(getConfigPath)/$name"
 	setProfiledDir "CACHE" "$(getCachePath)/$name"
 	setProfiledDir "MOD_CACHE" "$(getCachePath)/$name/MOD_CACHE"
-	# PROFILE[path]
+}
+
+function DeleteProfile {
+	evalParams $@
+	echo force option: $(getOption "force" 0 "yes")
+	dumpAssocArray INTERNAL_OPTIONS
+	# dumpAssocArray INTERNAL_OPTION_ALIAS
+	# coecho "$FC_BOLD$FC_LIGHT_YELLOW" "THIS WILL SMITE YOUR ENTIRE SERVER PROFILE"
+	# declare -g -- COECHO_ECHO_OPTS="-n"
+	# coecho "$FC_BOLD$FC_LIGHT_GREEN" "write: [yes I do] if you want to delete the profile (not case sensitive): "
+	# read -r res
+	# if [ "yes i do" == "$(toLower "$res")" ]; then
+	# 	echo deleted
+	# else
+	# 	echo not deleted
+	# fi
+	# unset COECHO_ECHO_OPTS
 }
 
 function CreateProfile {
@@ -96,8 +132,6 @@ function CreateProfile {
 	loadDefaultProfile
 	
 	dumpAssocArray PROFILE
-
-
 }
 
 

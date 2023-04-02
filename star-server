@@ -61,10 +61,10 @@ if ! source "$BASH_QOL_SCREEN"; then
 	exit 0;
 fi
 
-if ! source "$BASH_QOL_PROFILER"; then
-	echo -e "$FC_RED$FC_BOLD""Could not load profiler library""$FC_RESET"
-	exit 0;
-fi
+# if ! source "$BASH_QOL_PROFILER"; then
+# 	echo -e "$FC_RED$FC_BOLD""Could not load profiler library""$FC_RESET"
+# 	exit 0;
+# fi
 
 if ! source "$YOUR_AWESM_COMMON_LIBRARY"; then
 	echo -e "$FC_RED$FC_BOLD""Could not load star-server's common library""$FC_RESET"
