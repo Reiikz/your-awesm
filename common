@@ -39,10 +39,19 @@
 #STARBOUND APP ID, this is the Game's APP ID and it is used to download mods, do not change it
 STARBOUND_APPID=211820
 
+PROGRAM_PREFIX="RZ"
+PROGRAM_NAME="Your-AweSM"
+
 # Register Common star-server exceptions
 
 # registerException "your_awesm_undefined_profiler" "Expected PROFILER_DEFAULTS to be Assoc Array but it was not or not defined"
-
+function registerYourAweSMCommonExceptions {
+	local s="$FC_BOLD$FC_LIGHT_RED""QoL Error: $FC_RED"
+	registerException "expected_profile" "$s""Expected profile but no profile was given"
+	registerException "wrong_profile" "$s""Profile $FC_LIGHT_CYAN%subject%$FC_LIGHT_RED does not exist"
+	registerException "loadvar_fail" "$s""Could not load $FC_LIGHT_CYAN%subject%"
+}
+registerYourAweSMCommonExceptions
 # Load up profiler defaults, if not present we should crash
 # if ! isAssoc PROFILER_DEFAULTS; then
 # 	throwEx "your_awesm_undefined_profiler"
@@ -50,13 +59,43 @@ STARBOUND_APPID=211820
 # 	PROFILER_DEFAULTS[test]="xd"
 # fi
 
-##no te olvides de añadir opciones globales
 
-registerInternalOption "profile_name" "string" "Name of the profile that's getting worked on" "--profile,-P"
+####### We load currently available profiles
+if ! loadVar AVAILABLE_PROFILES $(getConfigPath); then
+	declare -gA AVAILABLE_PROFILES
+fi
+
 registerInternalOption "Profile" "subcommand" "" "profile,"
+registerInternalOption "Purge" "subcommand" "" "purge,"
+registerInternalOption "profile_name" "string" "Name of the profile that's getting worked on" "--profile,-P"
 registerInternalOption "force" "none" "Take the course of action that provokes change without confirmation" "-f,--force"
 
+function printCopyright {
+	coecho "$FC_BOLD$FC_LIGHT_GREEN" "YOUR AWEsome Starbound Manager - $FC_LIGHT_CYAN""your-awesm$FC_LIGHT_GREEN © $FC_LIGHT_PINK""Reiikz$FC_LIGHT_GREEN - $COPYRIGHT_YEAR"
+	coecho "$FC_BOLD" "$FC_LIGHT_CYAN$MYSELF$FC_LIGHT_GREEN command - v $FC_LIGHT_CYAN$VERSION$FC_LIGHT_GREEN - MIT LICENSED"
+	coecho "$FC_BOLD$FC_LIGHT_GREEN" "Official source: $FC_BLUE$SOURCE_URL"
+	coecho "$FC_BOLD$FC_LIGHT_GREEN" "Report bugs to: $FC_BLUE$ERROR_REPORTING_TO"
+	coecho "$FC_BOLD$FC_LIGHT_GREEN" "For documentation refer to: $FC_BLUE$DOCUMENTATION"
+}
+
+function Purge {
+	evalParams $@
+	local force=$(getOption "force" 0 "yes")
+	coecho "$FC_BOLD$FC_LIGHT_YELLOW" "THIS WILL SMITE EVERY CONFIGURATION AND SAVE FILES YOU'VE CREATED USING THE PROGRAM"
+	declare -g -- COECHO_ECHO_OPTS="-n"
+	! readbool "$force" && coecho "$FC_BOLD$FC_LIGHT_GREEN" "write: [yes I do] if you want to delete $FC_RED""EVERYTHING$FC_LIGHT_GREEN (not case sensitive): "
+	unset COECHO_ECHO_OPTS
+	! readbool "$force" && read -r res
+	if [ "yes i do" == "$(toLower "$res")" ] || readbool "$force"; then
+		coecho "$FC_BOLD$FC_LIGHT_GREEN" "Deleting everything"
+		rm -rf "$(getStoragePath)" "$(getConfigPath)" "$(getCachePath)" "$(getTmpPath)"
+	else
+		coecho "$FC_BOLD$FC_GREEN" "No action taken."
+	fi
+}
+
 function Profile {
+	INTERNAL_COMMAND_RAN=no
 
 	INTERNAL_OPTION_CONTEXT="Profile"
 	copyOptionToCurrentContext "" "profile_name"
@@ -66,6 +105,32 @@ function Profile {
 
 	evalParams $@
 
+	if ! readbool "$INTERNAL_COMMAND_RAN"; then
+		coecho "$FC_BOLD$FC_LIGHT_GREEN" "profile expected a command"
+		printAvailableServers
+	fi
+}
+
+function isThereProfiles {
+	if [ "${#AVAILABLE_PROFILES[@]}" == "0" ]; then
+		return 1
+	fi
+	return 0
+}
+
+function saveAvaliableProfiles {
+	saveVar AVAILABLE_PROFILES "$(getConfigPath)"
+}
+
+function saveProfile {
+	saveVar PROFILE "${PROFILE[CONFIG_PATH]}"
+}
+
+function isProfile {
+	if [ ! -z "${AVAILABLE_PROFILES[$1]}" ]; then
+		return 0
+	fi
+	return 1
 }
 
 function setProfiledDir {
@@ -73,13 +138,14 @@ function setProfiledDir {
 	local path="$2"
 	PROFILE[$name]="$path"
 
+	mkdir -p "$path"
+
 	if [ -z "${PROFILE[DIRLIST~count]}" ]; then
 		PROFILE[DIRLIST~count]=0
 	fi
+
 	PROFILE[DIRLIST~${PROFILE[DIRLIST~count]}]="$path"
 	PROFILE[DIRLIST~count]=$((${PROFILE[DIRLIST~count]}+1))
-
-	mkdir -p "$path"
 }
 
 function deleteProfileDirs {
@@ -103,27 +169,60 @@ function loadDefaultProfile {
 	declare -gA PROFILE
 	PROFILE[NAME]="$name"
 	setProfiledDir "PATH" "$(getStoragePath)/$name"
-	setProfiledDir "CONFIG_PATH" "$(getConfigPath)/$name"
+	setProfiledDir "CONFIG_PATH" "$(getStoragePath)/$name/config"
 	setProfiledDir "CACHE" "$(getCachePath)/$name"
 	setProfiledDir "MOD_CACHE" "$(getCachePath)/$name/MOD_CACHE"
 }
 
+function printAvailableServers {
+	if isThereProfiles; then
+		coecho "$FC_BOLD$FC_BLUE" "Currently available profiles:"
+		COECHO_TABS=1
+		for x in "${!AVAILABLE_PROFILES[@]}"; do
+			coecho "$FC_GREEN" "$x"
+		done
+	else
+		coecho "$FC_BOLD$FC_BLUE" "There is no configured profiles"
+	fi
+}
+
 function DeleteProfile {
 	evalParams $@
-	# getOption "force" 0 "yes"
-	# echo force option: $(getOption "force" 0 "yes")
-	# dumpAssocArray INTERNAL_OPTIONS
-	# dumpAssocArray INTERNAL_OPTION_ALIAS
-	# coecho "$FC_BOLD$FC_LIGHT_YELLOW" "THIS WILL SMITE YOUR ENTIRE SERVER PROFILE"
-	# declare -g -- COECHO_ECHO_OPTS="-n"
-	# coecho "$FC_BOLD$FC_LIGHT_GREEN" "write: [yes I do] if you want to delete the profile (not case sensitive): "
-	# read -r res
-	# if [ "yes i do" == "$(toLower "$res")" ]; then
-	# 	echo deleted
-	# else
-	# 	echo not deleted
-	# fi
-	# unset COECHO_ECHO_OPTS
+	local force=$(getOption "force" 0 "yes")
+	local profile=$(getOption "profile_name" 0 yes)
+
+	if [ -z "$profile" ]; then
+		throwEx "expected_profile"
+	fi
+	
+	if ! isProfile "$profile"; then
+		throwEx "wrong_profile" "$profile"
+	fi
+
+	coecho "$FC_BOLD$FC_LIGHT_YELLOW" "THIS WILL SMITE YOUR ENTIRE SERVER PROFILE"
+	declare -g -- COECHO_ECHO_OPTS="-n"
+	! readbool "$force" && coecho "$FC_BOLD$FC_LIGHT_GREEN" "write: [yes I do] if you want to delete the profile (not case sensitive): "
+	unset COECHO_ECHO_OPTS
+	! readbool "$force" && read -r res
+	if [ "yes i do" == "$(toLower "$res")" ] || readbool "$force"; then
+		coecho "$FC_BOLD$FC_LIGHT_GREEN" "Deleting profile $FC_LIGHT_CYAN$profile"
+		if ! loadVar PROFILE ${AVAILABLE_PROFILES[$profile]}; then
+			throwEx "loadvar_fail" "${AVAILABLE_PROFILES[$profile]}"
+		fi
+		local dir=""
+		for x in $(seq 0 $((${PROFILE[DIRLIST~count]}-1))); do
+			dir="${PROFILE[DIRLIST~$x]}"
+			COECHO_TABS=1
+			[ -e "$dir" ] && if rm -r "$dir"; then
+				coecho "$FC_GREEN$FC_BOLD" "Deleted: $dir"
+			fi
+			unset COECHO_TABS
+			unset AVAILABLE_PROFILES[$profile]
+			saveAvaliableProfiles
+		done
+	else
+		coecho "$FC_BOLD$FC_GREEN" "No action taken."
+	fi
 }
 
 function CreateProfile {
@@ -133,6 +232,11 @@ function CreateProfile {
 	loadDefaultProfile
 	
 	dumpAssocArray PROFILE
+
+	AVAILABLE_PROFILES[${PROFILE[NAME]}]="${PROFILE[CONFIG_PATH]}"
+
+	saveAvaliableProfiles
+	saveProfile
 }
 
 
@@ -270,4 +374,5 @@ function parseModpack {
 	cleanup
 	return 0
 }
+
 

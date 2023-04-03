@@ -254,6 +254,7 @@ function subCommandValidator {
 
 function runInternalCommand {
 	local command="$CURRENT_INTERNAL_COMMAND $ARGUMENT_PASSTHROUGH"
+	if [ ! -z $CURRENT_INTERNAL_COMMAND ]; then declare -g -- INTERNAL_COMMAND_RAN="yes"; fi
 	unset CURRENT_INTERNAL_COMMAND
 	unset ARGUMENT_PASSTHROUGH
 	eval "$command"
@@ -353,8 +354,8 @@ function getOption {
 	if [ -z "$out" ]; then
 		if [ "${INTERNAL_OPTIONS[$1~parser]}" == "nonArgParameter" ]; then
 			INTERNAL_OPTIONS[$context$1~value]="no"
-			INTERNAL_OPTIONS[$1~value]="no"
-			INTERNAL_OPTIONS[$1~value~$index]="no"
+			# INTERNAL_OPTIONS[$1~value]="no"
+			# INTERNAL_OPTIONS[$1~value~$index]="no"
 			out="no"
 		fi
 	fi
@@ -540,7 +541,8 @@ function throwEx {
 		return 2
 	fi
 	local mess="$(getExDes $1)"
-	mess="$(sed s/%subject%/$2/g <<< $mess)"
+	local escapedString="$(sed "s/\//\\\\\//g" <<< "$2")"
+	mess="$(sed s/%subject%/$escapedString/g <<< $mess)"
 	coecho "$mess"
 	printStackTrace
 	exit ${QoL_ERRORS[$1]}
@@ -589,19 +591,19 @@ function getHome {
 }
 
 function getStoragePath {
-	echo "$(getHome)/.local/lib/$PROGRAM_PREFIX.$(getMyFileName)"
+	echo "$(getHome)/.local/lib/$PROGRAM_PREFIX.$PROGRAM_NAME"
 }
 
 function getConfigPath {
-	echo "$(getHome)/.config/$PROGRAM_PREFIX.$(getMyFileName)"
+	echo "$(getHome)/.config/$PROGRAM_PREFIX.$PROGRAM_NAME"
 }
 
 function getCachePath {
-	echo "$(getHome)/.cache/$PROGRAM_PREFIX.$(getMyFileName)"
+	echo "$(getHome)/.cache/$PROGRAM_PREFIX.$PROGRAM_NAME"
 }
 
 function getTmpPath {
-	echo "/tmp/$PROGRAM_PREFIX.BashQoL"
+	echo "/tmp/$PROGRAM_PREFIX.$PROGRAM_NAME"
 }
 
 ############## STRING FUNCTIONS
@@ -756,12 +758,15 @@ function saveVar {
 function loadVar {
     unset "$1"
     local dir="$2"
-    if ! source "$dir/$1.bvar" 2> /dev/null; then
-        return 1
-    else
-        declare -p $1 | sed -E "s/^declare -/declare -g -/g"
-        return 0
-    fi
+	source "$dir/$1.bvar" 2> /dev/null
+	return $?
+	# dumpAssocArray $1
+    # if ! source "$dir/$1.bvar" 2> /dev/null; then
+    #     return 1
+    # else
+    #     declare -p $1 | sed -E "s/^declare -/declare -g -/g"
+    #     return 0
+    # fi
 }
 
 ################ Date handling

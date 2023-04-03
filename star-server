@@ -26,7 +26,7 @@
 
 
 VERSION="sid-(development version)"
-COPYRIGHT_YEAR="2022 - $(date +"%Y")"
+COPYRIGHT_YEAR="2022$([ "$(date +"%Y")" -gt 2022 ] && echo -n " - $(date +"%Y")")"
 SOURCE_URL="https://github.com/Reiikz/your-awesm"
 ERROR_REPORTING_TO="https://github.com/Reiikz/your-awesm/issues"
 CONFIGVER=2
@@ -41,8 +41,6 @@ BASH_QOL_FILES="$INSTALL_PREFIX/lib/reiikz/bash-qol/fileHandling"
 BASH_QOL_SCREEN="$INSTALL_PREFIX/lib/reiikz/bash-qol/screen"
 BASH_QOL_PROFILER="$INSTALL_PREFIX/lib/reiikz/bash-qol/profiler"
 YOUR_AWESM_COMMON_LIBRARY="$INSTALL_PREFIX/lib/reiikz/your-awesm/common"
-
-PROGRAM_PREFIX="RZ"
 
 #load up main library
 
@@ -77,22 +75,12 @@ DOCUMENTATION="The Manual (man $(getMyCommandName))"
 
 MY_UID="$(getMasterUniqueId)"
 
-######## register star-server unique exceptions
-
-
-######## functions
-
-function printCopyright {
-	coecho "$FC_BOLD$FC_LIGHT_GREEN" "YOUR AWEsome Starbound Manager - $FC_LIGHT_CYAN""your-awesm$FC_LIGHT_GREEN © $FC_LIGHT_PINK""Reiikz$FC_LIGHT_GREEN - $COPYRIGHT_YEAR"
-	coecho "$FC_BOLD" "$FC_LIGHT_CYAN$MYSELF$FC_LIGHT_GREEN command - v $FC_LIGHT_CYAN$VERSION$FC_LIGHT_GREEN - MIT LICENSED"
-	coecho "$FC_BOLD$FC_LIGHT_GREEN" "Official source: $FC_BLUE$SOURCE_URL"
-	coecho "$FC_BOLD$FC_LIGHT_GREEN" "Report bugs to: $FC_BLUE$ERROR_REPORTING_TO"
-	coecho "$FC_BOLD$FC_LIGHT_GREEN" "For documentation refer to: $FC_BLUE$DOCUMENTATION"
-}
 #parse options
 
 if [ $# -eq 0 ]; then
 	printCopyright
+	echo ""
+	printAvailableServers
 	exit 0
 fi
 

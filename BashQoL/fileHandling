@@ -64,3 +64,20 @@ function linkify {
 		fi
     fi
 }
+
+#usage: isDirChildOf $parentDIr $childDir
+function isDirChildOf {
+
+    local parent="$(realpath -P "$1")"
+    local child="$(realpath -P "$2")"
+
+    case $child in
+        "$parent"/*)
+            return 0    
+        ;;
+        *)
+            return 1
+        ;;
+    esac
+
+}
