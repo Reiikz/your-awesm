@@ -1,0 +1,102 @@
+#!/bin/bash
+
+#
+# MIT License
+#
+# Copyright (c) 2022 Reiikz
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+
+#######################################################################
+######			---------------------------------------------         #
+######							ATENTION                              #
+######			---------------------------------------------         #
+######		THIS IS JUST A LIBRARY CONTAINGING FUNCTIONS AND SHOULD   #
+######      NOT BE RAN MANUALLY 									  #
+######																  #
+#######################################################################
+
+# SOURCE_URL="https://github.com/Reiikz/your-awesm"
+# ERROR_REPORTING_TO="https://github.com/Reiikz/your-awesm/issues"
+
+BASH_QOL_STEAMCMD_VERSION="0.0.1"
+
+if [ "${#BASH_QOL_LIBRARIES[@]}" == "0" ]; then
+    declare -gA BASH_QOL_LIBRARIES=( [steamcmd]="$BASH_QOL_STEAMCMD_VERSION" )
+else
+    BASH_QOL_LIBRARIES[steamcmd]="$BASH_QOL_STEAMCMD_VERSION"
+fi
+
+uh="$(getHome)"
+declare -gA STEAMAPPS_LOCATIONS=(
+    [0]="$uh/.steam/steam/steamapps"
+    [1]="$uh/.steam/steam/SteamApps"
+    [2]="$uh/.steam/debian-installation/steamapps"
+    [3]="$uh/.steam/debian-installation/SteamApps"
+)
+unset uh
+declare -gA STEAMCMD_LOCATIONS=(
+    [0]="/usr/games/steamcmd"
+    [1]="/usr/bin/steamcmd"
+)
+
+function registerQoLsteamcmdExceptions {
+    local s="$FC_BOLD$FC_LIGHT_RED""QoL Error: $FC_RED"
+    registerQoLException "no_steamcmd" "$s""Could not find steamcmd"
+}
+registerQoLsteamcmdExceptions
+
+function findSteamcmd {
+    declare -g -- STEAMCMD=""
+    for x in "${STEAMCMD_LOCATIONS[@]}"; do
+        if [ -f "$x" ]; then
+            STEAMCMD="$x"
+            return 0
+        fi
+    done
+    throwEx "no_steamcmd"
+}
+
+function findSteam {
+    
+    if findSteamcmd; then
+        for x in "${STEAMAPPS_LOCATIONS[@]}"; do
+            if [ -d "$x" ]; then
+                declare -g -- STEAM="$x"
+                return 0
+            fi
+        done
+        
+        coecho "$FC_LIGHT_YELLOW$FC_BOLD" "Steam folder not found running 'steamcmd \"+quit\"'"
+        mkdir -p ${PROFILE[DUMP_FILES]}
+
+        mkdir -p ${PROFILE[DUMP_FILES]}
+        $STEAMCMD "+quit" 2>&1 > ${PROFILE[DUMP_FILES]}/latestSteamCMDdump.stdout
+
+        for x in "${STEAMAPPS_LOCATIONS[@]}"; do
+            if [ -d "$x" ]; then
+                declare -g -- STEAM="$x"
+                return 0
+            fi
+        done
+
+        coecho "$FC_LIGHT_RED$FC_BOLD" "OOPS Steam could not be found"
+    fi
+}

@@ -86,7 +86,6 @@ function findAllOfTheQoLLibrary {
 		fi
 	done
 }
-findAllOfTheQoLLibrary
 
 declare -gA QoL_ERRORS
 QoL_ERRORS[upper_error_limit]="100"
@@ -802,6 +801,7 @@ function isSystemd {
 	return 1
 }
 
-
- registerQoLCommonExceptions
- registerCommonExceptions
+findAllOfTheQoLLibrary
+registerQoLCommonExceptions
+registerCommonExceptions
+ 
