@@ -50,7 +50,7 @@ BASH_QOL_FILE_HANDLEING_VERSION="0.0.1"
 BASH_QOL_LIBRARIES[FILE_HANDLEING]="$BASH_QOL_FILE_HANDLEING_VERSION"
 
 function linkify {
-    if [ "$COPY" == "1" ]; then
+    if readbool $(getOption "copy" 0 yes); then
         if ! cp -r "$1" "$2"; then
 			coecho "$FC_RED$FC_BOLD" "could not copy: \"$1\" to \"$2\""
 			return 1

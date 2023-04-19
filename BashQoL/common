@@ -553,12 +553,12 @@ function isDef {
 	return $?
 }
 
-function isQoL {
-	if [ -z "${BASH_QOL_LIBRARIES[$1]}" ]; then
-		echo -e "$FC_RED$FC_BOLD""B.QoL Error: Could not load library $1""$FC_RESET"
-		return 200
-	fi
-}
+# function isQoL {
+# 	if [ -z "${BASH_QOL_LIBRARIES[$1]}" ]; then
+# 		echo -e "$FC_RED$FC_BOLD""B.QoL Error: Could not load library $1""$FC_RESET"
+# 		return 200
+# 	fi
+# }
 
 function getMasterUniqueId {
     echo "$$.$(basename ${BASH_SOURCE[$((${#BASH_SOURCE[@]}-1))]})"

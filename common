@@ -42,6 +42,7 @@ STARBOUND_APPID=211820
 PROGRAM_PREFIX="RZ"
 PROGRAM_NAME="Your-AweSM"
 
+
 # Register Common star-server exceptions
 
 # registerException "your_awesm_undefined_profiler" "Expected PROFILER_DEFAULTS to be Assoc Array but it was not or not defined"
@@ -51,6 +52,7 @@ function registerYourAweSMCommonExceptions {
 	registerException "wrong_profile" "$s""Profile $FC_LIGHT_CYAN%subject%$FC_LIGHT_RED does not exist"
 	registerException "loadvar_fail" "$s""Could not load $FC_LIGHT_CYAN%subject%"
 	registerException "could_not_load_available_profiles" "$s""Could not load available profiles :("
+	registerException "no_starbound" "$s""Could not find starbound :'c"
 }
 registerYourAweSMCommonExceptions
 
@@ -71,6 +73,7 @@ registerInternalOption "Profile" "subcommand" "Profiling functionality sub-comma
 registerInternalOption "Purge" "subcommand" "Delete all data created by $PROGRAM_NAME" "purge,"
 registerInternalOption "profile_name" "string" "Name of the profile that's getting worked on" "--profile,-P"
 registerInternalOption "force" "none" "Take the course of action that provokes change without confirmation" "-f,--force"
+registerInternalOption "copy" "none" "if enabled files will be copied over instead of symlinked" "--cp,"
 
 function printCopyright {
 	coecho "$FC_BOLD$FC_LIGHT_GREEN" "YOUR AWEsome Starbound Manager - $FC_LIGHT_CYAN""your-awesm$FC_LIGHT_GREEN © $FC_LIGHT_PINK""Reiikz$FC_LIGHT_GREEN - $COPYRIGHT_YEAR"
@@ -102,6 +105,7 @@ function Profile {
 	INTERNAL_OPTION_CONTEXT="Profile"
 	copyOptionToCurrentContext "" "profile_name"
 	copyOptionToCurrentContext "" "force"
+	copyOptionToCurrentContext "" "copy"
 	registerInternalOption "CreateProfile" "subcommand" "Create a profile" "create,"
 	registerInternalOption "DeleteProfile" "subcommand" "Delete currently selected profile"  "delete,"
 
@@ -129,8 +133,35 @@ function saveAvaliableProfiles {
 	saveVar AVAILABLE_PROFILES "$(getConfigPath)"
 }
 
+function syncActiveProfile {
+	local pp="$(getOption "profile_name" "0" "yes")"
+	if ! isset ACTIVE_PROFILE; then
+		if [ ! -z "$pp" ]; then
+			declare -g -- ACTIVE_PROFILE
+			ACTIVE_PROFILE="$pp"
+		else
+			if ! loadVar ACTIVE_PROFILE "$(getConfigPath)"; then
+				if loadAvailableProfiles; then
+					declare -g -- ACTIVE_PROFILE
+					for x in "${!AVAILABLE_PROFILES[@]}"; do
+						ACTIVE_PROFILE="$x"
+						break
+					done
+				fi
+			fi
+		fi
+	fi
+	if ! isset ACTIVE_PROFILE; then
+		return 1
+	else
+		saveVar ACTIVE_PROFILE "$(getConfigPath)"
+	fi
+	return 0
+}
+
 function loadProfile {
-	echo lol implement me
+	loadVar "PROFILE" "${AVAILABLE_PROFILES[$ACTIVE_PROFILE]}"
+	return $?
 }
 
 function saveProfile {
@@ -180,6 +211,7 @@ function loadDefaultProfile {
 	declare -gA PROFILE
 	PROFILE[NAME]="$name"
 	setProfiledDir "PATH" "$(getStoragePath)/$name"
+	setProfiledDir "WORK_DIR" "$(getStoragePath)/$name/starbound"
 	setProfiledDir "CONFIG_PATH" "$(getStoragePath)/$name/config"
 	setProfiledDir "CACHE" "$(getCachePath)/$name"
 	setProfiledDir "MOD_CACHE" "$(getCachePath)/$name/MOD_CACHE"
@@ -242,16 +274,78 @@ function CreateProfile {
 
 	loadDefaultProfile
 	
-	# dumpAssocArray PROFILE
-	
 	AVAILABLE_PROFILES[${PROFILE[NAME]}]="${PROFILE[CONFIG_PATH]}"
-	# dumpAssocArray AVAILABLE_RPOFILES
 
-	saveAvaliableProfiles
-	saveProfile
+	if  findAndVerifyStarboundDir; then
 
-	findSteam
-	findSteamLibraries
+		coecho "$FC_LIGHT_GREEN$FC_BOLD" "Creating profile $FC_LIGHT_CYAN${PROFILE[NAME]}$FC_LIGHT_GREEN with the following parameters:"
+
+		declare -g -- COECHO_TABS=1
+
+		if mkdir -p "${PROFILE[WORK_DIR]}"; then
+			coecho "$FC_LIGHT_GREEN$FC_BOLD" "Created directory for starbound at$FC_LIGHT_YELLOW:$FC_LIGHT_CYAN ${PROFILE[WORK_DIR]}"
+		else
+			coecho "$FC_RED$FC_BOLD" "Could not create directory for starbound at$FC_LIGHT_YELLOW:$FC_LIGHT_CYAN ${PROFILE[WORK_DIR]}"
+		fi
+
+		if linkify "$STARBOUND_DIR/assets" "${PROFILE[WORK_DIR]}/assets"; then
+			coecho "$FC_LIGHT_GREEN$FC_BOLD" "linked assets folder$FC_LIGHT_YELLOW:$FC_LIGHT_CYAN ${PROFILE[WORK_DIR]}/assets"
+		fi
+
+		if mkdir -p "${PROFILE[WORK_DIR]}/bin"; then
+			coecho "$FC_LIGHT_GREEN$FC_BOLD" "Created directory for starbound at$FC_LIGHT_YELLOW:$FC_LIGHT_CYAN ${PROFILE[WORK_DIR]}/bin"
+		else
+			coecho "$FC_RED$FC_BOLD" "Could not create directory for starbound at$FC_LIGHT_YELLOW:$FC_LIGHT_CYAN ${PROFILE[WORK_DIR]}/bin"
+		fi
+
+		if linkify "$STARBOUND_DIR/linux/libsteam_api.so" "${PROFILE[WORK_DIR]}/bin/libsteam_api.so"; then
+			coecho "$FC_LIGHT_GREEN$FC_BOLD" "linked steamapi$FC_LIGHT_YELLOW:$FC_LIGHT_CYAN ""${PROFILE[WORK_DIR]}/bin/libsteam_api.so"
+		fi
+
+		if linkify "$STARBOUND_DIR/linux/make_versioned_json" "${PROFILE[WORK_DIR]}/bin/make_versioned_json"; then
+			coecho "$FC_LIGHT_GREEN$FC_BOLD" "linked steamapi$FC_LIGHT_YELLOW:$FC_LIGHT_CYAN ""${PROFILE[WORK_DIR]}/bin/make_versioned_json"
+		fi
+
+		if cp "$STARBOUND_DIR/linux/sbinit.config" "${PROFILE[WORK_DIR]}/bin"; then
+			coecho "$FC_LIGHT_GREEN$FC_BOLD" "copied sbinit.config to$FC_LIGHT_YELLOW:$FC_LIGHT_CYAN ""${PROFILE[WORK_DIR]}/bin$FC_LIGHT_GREEN"
+		fi
+
+		if linkify "$STARBOUND_DIR/linux/starbound_server" "${PROFILE[WORK_DIR]}/bin/starbound_server"; then
+			coecho "$FC_LIGHT_GREEN$FC_BOLD" "linked starbound server executable$FC_LIGHT_YELLOW:$FC_LIGHT_CYAN ""${PROFILE[WORK_DIR]}/bin/starbound_server"
+		fi
+
+		if linkify "$STARBOUND_DIR/linux/starbound" "${PROFILE[WORK_DIR]}/bin/starbound"; then
+			coecho "$FC_LIGHT_GREEN$FC_BOLD" "linked starbound client executable$FC_LIGHT_YELLOW:$FC_LIGHT_CYAN ""${PROFILE[WORK_DIR]}/bin/starbound"
+		fi
+
+		echo -e "#!/bin/bash\ncd \"${PROFILE[WORK_DIR]}/bin\"\nexport LD_PRELOAD=\"./libsteam_api.so\"\n./starbound\n" > "${PROFILE[WORK_DIR]}/bin/runclient"
+		chmod +x "${PROFILE[WORK_DIR]}/bin/runclient"
+		coecho "$FC_LIGHT_GREEN$FC_BOLD" "Client script at$FC_LIGHT_YELLOW:$FC_LIGHT_CYAN ""${PROFILE[WORK_DIR]}/bin/runclient"
+		echo -e "#!/bin/bash\ncd \"${PROFILE[WORK_DIR]}/bin\"\n./starbound_server\n" > "${PROFILE[WORK_DIR]}/bin/runserver"
+		chmod +x "${PROFILE[WORK_DIR]}/bin/runserver"
+		coecho "$FC_LIGHT_GREEN$FC_BOLD" "Server script at$FC_LIGHT_YELLOW:$FC_LIGHT_CYAN ""${PROFILE[WORK_DIR]}/bin/runserver"
+
+		PROFILE[SERVER]="${PROFILE[WORK_DIR]}/bin/runserver"
+		PROFILE[CLIENT]="${PROFILE[WORK_DIR]}/bin/runclient"
+
+		if linkify "$STARBOUND_DIR/tiled/" "${PROFILE[WORK_DIR]}/tiled"; then
+			coecho "$FC_LIGHT_GREEN$FC_BOLD" "linked starbound tiled dir$FC_LIGHT_YELLOW:$FC_LIGHT_CYAN ""${PROFILE[WORK_DIR]}/tiled"
+		fi
+
+		if linkify "$STARBOUND_DIR/doc/" "${PROFILE[WORK_DIR]}/doc"; then
+			coecho "$FC_LIGHT_GREEN$FC_BOLD" "linked starbound doc dir$FC_LIGHT_YELLOW:$FC_LIGHT_CYAN ""${PROFILE[WORK_DIR]}/doc"
+		fi
+
+		declare -g -- ACTIVE_PROFILE="${PROFILE[NAME]}"
+		syncActiveProfile
+		saveAvaliableProfiles
+		saveProfile
+
+		# dumpAssocArray PROFILE
+
+	else
+		throwEx "no_starbound"
+	fi
 
 }
 
