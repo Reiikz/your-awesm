@@ -38,13 +38,16 @@
 
 # provides functions related to screen handling
 
-BASH_QOL_SCREEN_VERSION="0.0.1"
-
-if [ ! -z "$(grep -oE "^declare\s+-A" <<< "$(declare -p $1 2> /dev/null)")" ]; then
-    declare -gA BASH_QOL_LIBRARIES=( [screen]="$BASH_QOL_SCREEN_VERSION" )
-else
-    BASH_QOL_LIBRARIES[screen]="$BASH_QOL_SCREEN_VERSION"
+#################### We check for the main library
+if [ -z "${BASH_QOL_LIBRARIES[COMMON]}" ]; then
+    echo "main library isn't loaded"
+    exit 1
 fi
+###################~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+BASH_QOL_SCREEN_VERSION="0.0.1"
+BASH_QOL_LIBRARIES[SCREEN]="$BASH_QOL_SCREEN_VERSION"
 
 function killScreen {
 	screen -X -S "$(isScreen "$1")" kill

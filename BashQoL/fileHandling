@@ -38,18 +38,16 @@
 
 # filesystem handling, (copying, linking, comparing)
 
-BASH_QOL_FILE_HANDLEING_VERSION="0.0.1"
-
-if [ -z "${BASH_QOL_LIBRARIES[@]}" ]; then
-    declare -gA BASH_QOL_LIBRARIES=( [fileHandling]="$BASH_QOL_FILE_HANDLEING_VERSION" )
-else
-    BASH_QOL_LIBRARIES[fileHandling]="$BASH_QOL_FILE_HANDLEING_VERSION"
-fi
-
-if [ -z "${BASH_QOL_LIBRARIES[common]}" ]; then
-    echo "BashQoL: file handling requires common library"
+#################### We check for the main library
+if [ -z "${BASH_QOL_LIBRARIES[COMMON]}" ]; then
+    echo "main library isn't loaded"
     exit 200
 fi
+###################~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+BASH_QOL_FILE_HANDLEING_VERSION="0.0.1"
+BASH_QOL_LIBRARIES[FILE_HANDLEING]="$BASH_QOL_FILE_HANDLEING_VERSION"
 
 function linkify {
     if [ "$COPY" == "1" ]; then

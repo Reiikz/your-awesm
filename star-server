@@ -64,11 +64,6 @@ if ! source "$BASH_QOL_STEAM"; then
 	echo -e "$FC_BOLD$FC_RED""Could not load  Bash Quality of Life steamcmd Library""$FC_RESET"
 fi
 
-# if ! source "$BASH_QOL_PROFILER"; then
-# 	echo -e "$FC_RED$FC_BOLD""Could not load profiler library""$FC_RESET"
-# 	exit 0;
-# fi
-
 if ! source "$YOUR_AWESM_COMMON_LIBRARY"; then
 	echo -e "$FC_RED$FC_BOLD""Could not load star-server's common library""$FC_RESET"
 	exit 0;
@@ -88,18 +83,5 @@ if [ $# -eq 0 ]; then
 	printAvailableServers
 	exit 0
 fi
-
-####### Register starserver program options
-
-# registerInternalCommand "profile" "profile"
-# registerInternalOption "sample_option" "string" "" "--sample-option,--sample,-s,-q"
-# registerInternalOption "option2" "string" "" "--sample2,"
-# registerInternalOption "non_parameter_option" "none" "" "--test-non-parameter,"
-
-# function profile {
-
-# 	echo profile $(getOption sample_option 1)
-
-# }
 
 evalParams $@

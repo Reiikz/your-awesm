@@ -1,0 +1,39 @@
+#!/bin/bash
+
+INSTALL_PREFIX="/usr/local"
+BASH_QOL_MAIN="$INSTALL_PREFIX/lib/reiikz/bash-qol/common"
+BASH_QOL_FILES="$INSTALL_PREFIX/lib/reiikz/bash-qol/fileHandling"
+BASH_QOL_SCREEN="$INSTALL_PREFIX/lib/reiikz/bash-qol/screen"
+BASH_QOL_PROFILER="$INSTALL_PREFIX/lib/reiikz/bash-qol/profiler"
+BASH_QOL_STEAM="$INSTALL_PREFIX/lib/reiikz/bash-qol/steamcmd"
+YOUR_AWESM_COMMON_LIBRARY="$INSTALL_PREFIX/lib/reiikz/your-awesm/common"
+
+if ! source "$BASH_QOL_MAIN"; then
+	echo -e "Could not load Bash Quality of Life Main library"
+	exit 0;
+fi
+
+if ! source "$BASH_QOL_FILES"; then
+	echo -e "$FC_RED$FC_BOLD""Could not load Bash Quality of Life File handling library""$FC_RESET"
+	exit 0;
+fi
+
+if ! source "$BASH_QOL_SCREEN"; then
+	echo -e "$FC_RED$FC_BOLD""Could not load Bash Quality of Life Screen library""$FC_RESET"
+	exit 0;
+fi
+
+if ! source "$BASH_QOL_STEAM"; then
+	echo -e "$FC_BOLD$FC_RED""Could not load  Bash Quality of Life steamcmd Library""$FC_RESET"
+fi
+
+if ! source "$YOUR_AWESM_COMMON_LIBRARY"; then
+	echo -e "$FC_RED$FC_BOLD""Could not load star-server's common library""$FC_RESET"
+	exit 0;
+fi
+
+if findAndVerifyStarboundDir; then
+	coecho "$FC_BOLD$FC_LIGHT_GREEN" "Starbound found!!!"
+else
+	coecho "$FC_BOLD$FC_RED" "Starbound not found :("
+fi

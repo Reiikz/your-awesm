@@ -40,12 +40,6 @@
 
 BASH_QOL_COMMON_VERSION="0.0.1"
 
-if [ -z "${BASH_QOL_LIBRARIES[@]}" ]; then
-    declare -gA BASH_QOL_LIBRARIES=( [common]="$BASH_QOL_COMMON_VERSION" )
-else
-    BASH_QOL_LIBRARIES[common]="$BASH_QOL_COMMON_VERSION"
-fi
-
 ################# LIBRARY
 
 #FORMATTING CODES
@@ -103,10 +97,13 @@ function registerQoLCommonExceptions {
 	registerQoLException "qol_code_request_unknown_option" "$s""(%subject%)$FC_RED is an unknown option"
 	registerQoLException "qol_failed_to_parse" "$s""Option Could not be parsed"
 	registerQoLException "qol_req_array_to_single" "$s""Requested array out of a single value option"
+	registerQoLException "qol_req_dump_unkown_arr" "$s""Requested array dump of: ($FC_LIGHT_CYAN%subject%$FC_RED) which is not set as an array"
+	registerQoLException "qol_argument_mismatch" "$s""Called function with argument mismatch"
 }
 
 function registerCommonExceptions {
 	local s="$FC_BOLD"
+	registerException "argument_mismatch" "$s""Called function with argument mismatch"
 	registerException "undefined" "$s$FC_LIGHT_CYAN%subject%$FC_RED is undefined"
 	registerException "nan"	"$s$FC_LIGHT_CYAN""%subject%$FC_RED is not a number"
 	registerException "invalid_option" "$s""$FC_LIGHT_CYAN""%subject%$FC_RED is not a valid option"
@@ -134,6 +131,7 @@ function registerInternalOptionValidator {
 
 function evalParams {
 	# echo $@
+	declare -ga COLLECTED_PARAMS
 	while [ $# -gt 0 ]; do
 		if isInternalCommand "$1"; then
 			if [ ! -z "$CURRENT_INTERNAL_COMMAND" ]; then
@@ -154,6 +152,7 @@ function evalParams {
 				coecho "$FC_BOLD" "$FC_LIGHT_CYAN""$1$FC_YELLOW is not a valid option"
 			fi
 		else
+			COLLECTED_PARAMS[${#COLLECTED_PARAMS[@]}]="$1"
 			shift
 			collectOptionParams $opt $@
 			for x in $(seq 1 $VALIDATOR_SKIP); do
@@ -668,6 +667,17 @@ function getArrayKeyByValue {
 	return 1
 }
 
+function isset {
+	[ -v "$1" ] && return 0
+	isArr $1 && return 0
+	return 1
+}
+
+function isNonAssocArr {
+	isArr $1 && ! isAssoc $1 && return 0
+	return 1
+}
+
 function isArr {
 	if [ ! -z "$(grep -oE "^declare\s+-(a|A)" <<< "$(declare -p $1 2> /dev/null)")" ]; then
 		return 0
@@ -684,6 +694,7 @@ function isAssoc {
 	fi
 }
 
+#usage; isInArray array_name needle
 function isInArray {
 	if isArr $1; then
 		local type="$(declare -p $1 | grep -oE "^declare -(A|a)")"
@@ -699,9 +710,15 @@ function isInArray {
     return 1
 }
 
+#usage: dumpAssocArray array_name
+#Caveats: It'll dump non assoc arrays but it'll turn them assoc in the process however the original array will stay in its original form
 function dumpAssocArray {
 
-	eval "$(declare -p $1 | sed -E "s/declare\s+-A\s+$1/declare -A ___ARR/g")"
+	[ -z "$1" ] && throwEx "qol_argument_mismatch"
+
+	! isArr $1 && throwEx "qol_req_dump_unkown_arr" "$1"
+
+	eval "$(declare -p $1 | sed -E "s/declare\s+-[A,a]\s+$1/declare -A ___ARR/g")"
 
 	coecho "$FC_BOLD$FC_BLUE" "Dumping $1"
 	declare -g -- COECHO_TABS="1"
@@ -804,4 +821,9 @@ function isSystemd {
 findAllOfTheQoLLibrary
 registerQoLCommonExceptions
 registerCommonExceptions
- 
+
+if ! isAssoc BASH_QOL_LIBRARIES; then
+	declare -gA BASH_QOL_LIBRARIES=( [COMMON]="$BASH_QOL_COMMON_VERSION" )
+else
+	BASH_QOL_LIBRARIES[COMMON]="$BASH_QOL_COMMON_VERSION"
+fi

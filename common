@@ -50,6 +50,7 @@ function registerYourAweSMCommonExceptions {
 	registerException "expected_profile" "$s""Expected profile but no profile was given"
 	registerException "wrong_profile" "$s""Profile $FC_LIGHT_CYAN%subject%$FC_LIGHT_RED does not exist"
 	registerException "loadvar_fail" "$s""Could not load $FC_LIGHT_CYAN%subject%"
+	registerException "could_not_load_available_profiles" "$s""Could not load available profiles :("
 }
 registerYourAweSMCommonExceptions
 
@@ -66,8 +67,8 @@ if ! loadVar AVAILABLE_PROFILES $(getConfigPath); then
 	declare -gA AVAILABLE_PROFILES
 fi
 
-registerInternalOption "Profile" "subcommand" "" "profile,"
-registerInternalOption "Purge" "subcommand" "" "purge,"
+registerInternalOption "Profile" "subcommand" "Profiling functionality sub-command" "profile,"
+registerInternalOption "Purge" "subcommand" "Delete all data created by $PROGRAM_NAME" "purge,"
 registerInternalOption "profile_name" "string" "Name of the profile that's getting worked on" "--profile,-P"
 registerInternalOption "force" "none" "Take the course of action that provokes change without confirmation" "-f,--force"
 
@@ -119,8 +120,17 @@ function isThereProfiles {
 	return 0
 }
 
+function loadAvailableProfiles {
+	loadVar AVAILABLE_PROFILES "$(getConfigPath)"
+	return $?
+}
+
 function saveAvaliableProfiles {
 	saveVar AVAILABLE_PROFILES "$(getConfigPath)"
+}
+
+function loadProfile {
+	echo lol implement me
 }
 
 function saveProfile {
@@ -232,17 +242,32 @@ function CreateProfile {
 
 	loadDefaultProfile
 	
-	dumpAssocArray PROFILE
-
+	# dumpAssocArray PROFILE
+	
 	AVAILABLE_PROFILES[${PROFILE[NAME]}]="${PROFILE[CONFIG_PATH]}"
+	# dumpAssocArray AVAILABLE_RPOFILES
 
 	saveAvaliableProfiles
 	saveProfile
 
 	findSteam
-	echo $STEAM
+	findSteamLibraries
+
 }
 
+function findAndVerifyStarboundDir {
+
+	while read -r line; do
+	
+		if [ -f "$line/assets/packed.pak" ]; then
+			declare -g -- STARBOUND_DIR="$line"
+			return 0
+		fi
+	
+	done <<< $(findSteamAppDirectory "Starbound")
+
+	return 1
+}
 
 
 

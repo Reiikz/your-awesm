@@ -36,13 +36,17 @@
 # SOURCE_URL="https://github.com/Reiikz/your-awesm"
 # ERROR_REPORTING_TO="https://github.com/Reiikz/your-awesm/issues"
 
-BASH_QOL_STEAMCMD_VERSION="0.0.1"
-
-if [ "${#BASH_QOL_LIBRARIES[@]}" == "0" ]; then
-    declare -gA BASH_QOL_LIBRARIES=( [steamcmd]="$BASH_QOL_STEAMCMD_VERSION" )
-else
-    BASH_QOL_LIBRARIES[steamcmd]="$BASH_QOL_STEAMCMD_VERSION"
+#################### We check for the main library
+if [ -z "${BASH_QOL_LIBRARIES[COMMON]}" ]; then
+    echo "main library isn't loaded"
+    exit 1
 fi
+###################~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+BASH_QOL_STEAMCMD_VERSION="0.0.1"
+BASH_QOL_LIBRARIES[STEAMCMD]="$BASH_QOL_STEAMCMD_VERSION"
+
 
 uh="$(getHome)"
 declare -gA STEAMAPPS_LOCATIONS=(
@@ -51,6 +55,12 @@ declare -gA STEAMAPPS_LOCATIONS=(
     [2]="$uh/.steam/debian-installation/steamapps"
     [3]="$uh/.steam/debian-installation/SteamApps"
 )
+
+declare -gA STEAMAPPS_VARIATIONS=(
+    [0]="steamapps"
+    [1]="SteamApps"
+)
+
 unset uh
 declare -gA STEAMCMD_LOCATIONS=(
     [0]="/usr/games/steamcmd"
@@ -60,6 +70,7 @@ declare -gA STEAMCMD_LOCATIONS=(
 function registerQoLsteamcmdExceptions {
     local s="$FC_BOLD$FC_LIGHT_RED""QoL Error: $FC_RED"
     registerQoLException "no_steamcmd" "$s""Could not find steamcmd"
+    registerQoLException "no_steam" "$s""Could not find steam"
 }
 registerQoLsteamcmdExceptions
 
@@ -99,4 +110,65 @@ function findSteam {
 
         coecho "$FC_LIGHT_RED$FC_BOLD" "OOPS Steam could not be found"
     fi
+}
+
+function collectSteamLibraries {
+	
+	if findSteam; then
+		declare -ga libraryDataLocations
+		declare -ga STEAM_LIBRARY_FOLDERS
+
+        ###### find the library metadata
+		for x in "${STEAMAPPS_LOCATIONS[@]}"; do
+
+			if [ -f "$x/libraryfolders.vdf" ]; then
+				libraryDataLocations[${#libraryDataLocations[@]}]="$x/libraryfolders.vdf"
+			fi
+
+		done
+
+        ###### parse the library metadata
+		for x in "${libraryDataLocations[@]}"; do
+			while read -r line; do
+
+                ###### let's make sure we are pointing to steamapps and that we're talking about any possible variation of steamapps
+				local path="$(realpath -m "$line")"
+                
+                for y in "${STEAMAPPS_VARIATIONS[@]}"; do
+                    if [ -d "$path/$y" ]; then
+                        path="$path/$y"
+                        break
+                    fi
+                done
+
+				if ! isInArray STEAM_LIBRARY_FOLDERS "$path" && [ -d "$path" ]; then
+					STEAM_LIBRARY_FOLDERS[${#STEAM_LIBRARY_FOLDERS[@]}]="$path"
+				fi
+
+			done <<< "$(cat "$x" | grep -oE "\"path\".+$" | sed -E "s/(\"path\"\s+|\")//g")"
+
+		done
+
+		unset libraryDataLocations
+
+		if ! isInArray STEAM_LIBRARY_FOLDERS "$(realpath "$STEAM")"; then
+			STEAM_LIBRARY_FOLDERS[${#STEAM_LIBRARY_FOLDERS[@]}]="$(realpath "$STEAM")"
+		fi
+	fi
+}
+
+function findSteamAppDirectory {
+
+    if [ -z "$1" ]; then
+        throwEx "qol_argument_mismatch"
+    fi
+
+	! isArr STEAM_LIBRARY_FOLDERS && collectSteamLibraries || throwEx "no_steam"
+
+    for x in "${STEAM_LIBRARY_FOLDERS[@]}"; do
+        if [ -d "$x/common/$1" ]; then
+            echo "$x/common/$1"
+        fi
+    done
+    
 }

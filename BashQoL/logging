@@ -36,17 +36,16 @@
 # SOURCE_URL="https://github.com/Reiikz/your-awesm"
 # ERROR_REPORTING_TO="https://github.com/Reiikz/your-awesm/issues"
 
+#################### We check for the main library
+if [ -z "${BASH_QOL_LIBRARIES[COMMON]}" ]; then
+    echo "main library isn't loaded"
+    exit 1
+fi
+###################~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
 BASH_QOL_LOGGING_VERSION="0.0.1"
-
-if [ -z "${BASH_QOL_LIBRARIES[@]}" ]; then
-    declare -gA BASH_QOL_LIBRARIES=( [logging]="$BASH_QOL_LOGGING_VERSION" )
-else
-    BASH_QOL_LIBRARIES[logging]="$BASH_QOL_LOGGING_VERSION"
-fi
-
-if ! isQoL "common" 2> /dev/null; then
-    exit 200
-fi
+BASH_QOL_LIBRARIES[LOGGING]="$BASH_QOL_LOGGING_VERSION"
 
 declare -A LOGGING
 
