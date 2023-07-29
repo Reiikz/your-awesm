@@ -1,0 +1,3 @@
+[submodule "BashQoL"]
+	path = BashQoL
+	url = https://github.com/Reiikz/BashQoL
