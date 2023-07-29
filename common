@@ -81,6 +81,7 @@ function printCopyright {
 	coecho "$FC_BOLD$FC_LIGHT_GREEN" "Official source: $FC_BLUE$SOURCE_URL"
 	coecho "$FC_BOLD$FC_LIGHT_GREEN" "Report bugs to: $FC_BLUE$ERROR_REPORTING_TO"
 	coecho "$FC_BOLD$FC_LIGHT_GREEN" "For documentation refer to: $FC_BLUE$DOCUMENTATION"
+	QoLCopyright
 }
 
 function Purge {
