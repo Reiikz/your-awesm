@@ -276,7 +276,7 @@ function CreateProfile {
 	
 	AVAILABLE_PROFILES[${PROFILE[NAME]}]="${PROFILE[CONFIG_PATH]}"
 
-	if  findAndVerifyStarboundDir; then
+	if findAndVerifyStarboundDir; then
 
 		coecho "$FC_LIGHT_GREEN$FC_BOLD" "Creating profile $FC_LIGHT_CYAN${PROFILE[NAME]}$FC_LIGHT_GREEN with the following parameters:"
 

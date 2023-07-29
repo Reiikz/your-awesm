@@ -67,6 +67,13 @@ declare -gA STEAMCMD_LOCATIONS=(
     [1]="/usr/bin/steamcmd"
 )
 
+declare -g -- STEAM_DOWNLOAD_ID=0
+declare -g -- STEAM_STATUS=c
+declare -g -- STEAM_STATUS_CLOSED
+declare -g -- STEAM_STATUS_DOWNLOADING
+declare -g -- STEAM_STATUS_TIMED_OUT
+declare -g -- STEAM_STATUS_READY
+
 function registerQoLsteamcmdExceptions {
     local s="$FC_BOLD$FC_LIGHT_RED""QoL Error: $FC_RED"
     registerQoLException "no_steamcmd" "$s""Could not find steamcmd"
@@ -170,5 +177,9 @@ function findSteamAppDirectory {
             echo "$x/common/$1"
         fi
     done
+    
+}
+
+function beginSteam {
     
 }
