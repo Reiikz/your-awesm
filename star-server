@@ -121,6 +121,13 @@ source $USER_HOME/.bashrc 2>/dev/null
 #DIR=$(dirname $0)
 #cd $DIR
 
+declare -a STEAMCMD_LOCATIONS=( [0]="/usr/bin/steamcmd" [1]="/usr/games/steamcmd" )
+for x in ${STEAMCMD_LOCATIONS[@]}; do
+	if [ -f "$x" ]; then
+		STEAMCMD="$x"
+	fi
+done
+
 function toLower {
 	echo "$1" | tr '[:upper:]' '[:lower:]'
 }
@@ -431,7 +438,7 @@ function findSteam {
 	mkdir -p ${PROFILE[DUMP_FILES]}
 
 	mkdir -p ${PROFILE[DUMP_FILES]}
-	/usr/games/steamcmd "+quit" 2>&1 > ${PROFILE[DUMP_FILES]}/latestSteamCMDdump.stdout
+	$STEAMCMD "+quit" 2>&1 > ${PROFILE[DUMP_FILES]}/latestSteamCMDdump.stdout
 
 	if [ -d "$USER_HOME/Steam/steamapps" ]; then
 		declare -g -- STEAM="$USER_HOME/Steam/steamapps"
@@ -556,7 +563,7 @@ function downloadMod {
 	if [ "$DRY_RUN" == "1" ]; then
 		coecho "$FC_LIGHT_YELLOW$FC_BOLD" "WARNING: Dry run, skipped steamcmd"
 	else
-		/usr/games/steamcmd $cmdline 2>&1 > "${PROFILE[DUMP_FILES]}/latestSteamCMDdump.stdout"
+		$STEAMCMD $cmdline 2>&1 > "${PROFILE[DUMP_FILES]}/latestSteamCMDdump.stdout"
 	fi
 	coecho "$FC_LIGHT_GREEN" "Looking for errors in the steam dump"
 	local good=0
@@ -930,7 +937,7 @@ function updateMods {
 	if [ "$DRY_RUN" == "1" ]; then
 		coecho "$FC_LIGHT_YELLOW$FC_BOLD" "WARNING: Dry run, skipped steamcmd"
 	else
-		/usr/games/steamcmd $cmdline 2>&1 > "${PROFILE[DUMP_FILES]}/dumps/latestSteamCMDdump.stdout"
+		$STEAMCMD $cmdline 2>&1 > "${PROFILE[DUMP_FILES]}/dumps/latestSteamCMDdump.stdout"
 	fi
 	coecho "$FC_LIGHT_GREEN" "Looking for errors in the steam dump"
 	local good=0
@@ -955,7 +962,7 @@ function updateMods {
 		if [ "$DRY_RUN" == "1" ]; then
 			coecho "$FC_LIGHT_YELLOW$FC_BOLD" "WARNING: Dry run, skipped steamcmd"
 		else
-			/usr/games/steamcmd $cmdline 2>&1 > "${PROFILE[DUMP_FILES]}/dumps/latestSteamCMDdump.stdout"
+			$STEAMCMD $cmdline 2>&1 > "${PROFILE[DUMP_FILES]}/dumps/latestSteamCMDdump.stdout"
 		fi
 	done
 
@@ -994,7 +1001,7 @@ function updateMods {
 		if [ "$DRY_RUN" == "1" ]; then
 			coecho "$FC_LIGHT_YELLOW$FC_BOLD" "WARNING: Dry run, skipped steamcmd"
 		else
-			/usr/games/steamcmd $cmdline 2>&1 > "${PROFILE[DUMP_FILES]}/dumps/latestSteamCMDdump.stdout"
+			$STEAMCMD $cmdline 2>&1 > "${PROFILE[DUMP_FILES]}/dumps/latestSteamCMDdump.stdout"
 		fi
 
 		for i in $(seq 1 3); do
@@ -1020,7 +1027,7 @@ function updateMods {
 			if [ "$DRY_RUN" == "1" ]; then
 				coecho "$FC_LIGHT_YELLOW$FC_BOLD" "WARNING: Dry run, skipped steamcmd"
 			else
-				/usr/games/steamcmd $cmdline 2>&1 > "${PROFILE[DUMP_FILES]}/dumps/latestSteamCMDdump.stdout"
+				$STEAMCMD $cmdline 2>&1 > "${PROFILE[DUMP_FILES]}/dumps/latestSteamCMDdump.stdout"
 			fi
 
 		done
