@@ -1,3 +1,5 @@
+# This repository has been moved to https://git.reiikz.net/reiikz/your-awesm
+
 ## What is it?
 
 YOUR-AWESM is a BASH written and tested (may run on other POSIX compliant shells, feel free to request compatibility).
